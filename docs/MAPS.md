@@ -68,6 +68,28 @@ curl -i https://cdn.wahooligan.com/wahoo-maps/tilepack-versions.json # 403 Forbi
 
 The device itself fetches tile packs over WiFi, triggered by the phone app over Bluetooth LE.
 
+### Additional findings from the community
+
+- **Routing tile URL pattern.** [wahooMapsCreator](https://github.com/treee111/wahooMapsCreator) (`docs/HOWTO_ADD_ROUTING_TILES_MANUALLY.MD`) documents `https://cdn.wahooligan.com/wahoo-maps/{version}/routing/tiles/{level}/000/{x}/{y}.gph.lzma` ("the latest map version is 12; level is 2; x, y are both 3-digit map tile indexes"). The routing tile ids are listed in a `mappack-gzip.json` on Wahoo's update server.
+- **Base-map versions** are kept per tile pack in `tilepack-versions.json` (see [Tiles and versions](#tiles-and-versions)); the routing version in the URL is not necessarily the same as the base-map version on the device.
+- **Firmware manifests:** a community gist ([Intyre](https://gist.github.com/Intyre/2c0a8e337671ed6f523950ef08e3ca3f)) describes `bolt.wahoofitness.com/boltapp/` version files; these cover firmware only.
+
+### Tested (October 2026)
+
+| Request | Result |
+| --- | --- |
+| `https://cdn.wahooligan.com/wahoo-maps/12/routing/tiles/2/000/001/001.gph.lzma` | 403 |
+| `https://cdn.wahooligan.com/wahoo-maps/18/routing/tiles/2/000/001/001.gph.lzma` | 403 |
+| `https://cdn.wahooligan.com/wahoo-maps/mappack-gzip.json` | 403 |
+| `https://bolt.wahoofitness.com/boltapp/mappack-gzip.json` and `mappack.json` | 404 |
+| `https://bolt.wahoofitness.com/boltapp/tilepack-versions.json` | 404 |
+
+**Still unknown:** a public index of the latest tile-pack versions, the meaning of the tile pack ids (e.g. 127, 156, 372-384 on a BOLT2) and a dated version history. This means there is no reliable "is there an update for this tile?" check yet.
+
+### How to find out: capture the app's traffic
+
+A map download by the ELEMNT app (or the ELEMNT over WiFi) would reveal how the pack index is requested and how download URLs are signed. A proxy such as [mitmproxy](https://mitmproxy.org/) can record this: point the phone's WiFi proxy at the PC, install the mitmproxy CA on the phone and start a map download. Look at hosts `*.wahooligan.com` and `bolt.wahoofitness.com`. Expect certificate pinning on newer app versions, which blocks this. Do not publish tokens or signed URLs from the capture, and respect Wahoo's terms of use.
+
 ## Building your own maps (community approach)
 
 Wahoo's servers are not required. The tile format is plain Mapsforge, so tiles can be generated from OpenStreetMap data and copied to the device. The [Sommet `wahoo_maps.py`](https://github.com/skinnie/sommet/blob/main/tools/wahoo_maps.py) tool documents a working pipeline (observed on an ELEMNT running BoltApp 1.77.10.1, over `adb`):
