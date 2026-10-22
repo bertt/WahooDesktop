@@ -41,6 +41,7 @@ Exit code is `0` on success and `1` on error (message on stderr).
 | `pull <device path> <local file>` | yes | Copy one raw file from the device to your computer |
 | `ls [prefix]` | yes | List raw device files, optionally filtered by path prefix |
 | `info` | no | Model, firmware, hardware, serial and factory info |
+| `firmware` | no | Checks the public Wahoo manifest: up to date, update available or newer (needs internet) |
 | `battery` | no | Battery level, history and drain statistics |
 | `storage` | no | Capacity and usage breakdown per folder |
 | `maps` | no | Installed map tiles, regions, versions and warnings |

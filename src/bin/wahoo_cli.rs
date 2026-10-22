@@ -28,6 +28,8 @@ enum Cmd {
     Pull { path: String, out: std::path::PathBuf },
     /// Device information: model, firmware, serial: model, firmware, serial
     Info,
+    /// Check whether a newer firmware is available (needs internet)
+    Firmware,
     /// Battery level and drain statistics
     Battery,
     /// Storage capacity and breakdown
@@ -152,6 +154,7 @@ fn run(cli: Cli) -> Result<(), String> {
     let d = pick(&app, &cli.device)?;
     let value = match &cli.cmd {
         Cmd::Info => views::info(&d),
+        Cmd::Firmware => views::firmware(&d),
         Cmd::Battery => views::battery(&d),
         Cmd::Storage => views::storage(&d),
         Cmd::Maps => views::maps(&d),
@@ -206,6 +209,15 @@ fn run(cli: Cli) -> Result<(), String> {
                 if !v.is_null() {
                     println!("{k:<16} {}", v.as_str().map(|s| s.to_string()).unwrap_or_else(|| v.to_string()));
                 }
+            }
+        }
+        Cmd::Firmware => {
+            println!("Installed  {}", value["installed"].as_str().unwrap_or("?"));
+            println!("Latest     {}", value["latest"].as_str().unwrap_or("?"));
+            if let Some(b) = value["beta"].as_str() { println!("Beta       {b}"); }
+            println!("Status     {}", value["message"].as_str().unwrap_or(""));
+            if value["status"] == "update_available" {
+                if let Some(u) = value["latest_url"].as_str() { println!("Download   {u}"); }
             }
         }
         Cmd::Battery => {

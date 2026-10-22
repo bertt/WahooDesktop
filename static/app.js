@@ -105,6 +105,13 @@ const VIEWS = {
       ${card("Device", kv({ Name: info.name, Model: info.descriptor || info.model, Manufacturer: info.manufacturer, "Serial number": info.serial, "Factory id": info.factory_id, Firmware: info.firmware, Hardware: info.hardware, "First ride": fDay(info.first_activity), "Last ride": fDay(info.last_activity), "Last sync": fDate(Date.parse(info.synced_at) / 1000), Connection: dev?.online ? "Online (USB / MTP)" : "Offline – showing cached data" }))}
       ${card("Where you ride", `<div id="ovmap" class="map"></div>`)}</div>
     <div class="grid g2" style="margin-top:14px">${card("Attention", al.items.map(alertHtml).join("") || '<div class="empty">All good ✓</div>')}${card("Distance per month", `<canvas id="ovm"></canvas>`)}</div>`;
+    get(key, "firmware").then(f => {
+      const sub = [...el.querySelectorAll(".kpi")].find(k => k.textContent.includes("Firmware"))?.querySelector(".s");
+      if (!sub) return;
+      const icon = { up_to_date: "✓ ", update_available: "⬆ ", newer: "✓ " }[f.status] || "";
+      sub.textContent = icon + f.message;
+      if (f.status === "update_available") sub.style.color = "#f5a623"; else if (f.status === "up_to_date" || f.status === "newer") sub.style.color = "#2ecc8f";
+    }).catch(() => {});
     const m = stats.by_month.slice(-24); barChart($("#ovm"), m.map(x => x.month.slice(2)), m.map(x => x.distance / 1000), { fmt: v => Math.round(v) });
     const map = newMap($("#ovmap")); if (map && stats.points.length) { map.on("load", () => { map.addSource("p", { type: "geojson", data: { type: "FeatureCollection", features: stats.points.map(p => ({ type: "Feature", geometry: { type: "Point", coordinates: [p[1], p[0]] } })) } }); map.addLayer({ id: "p", type: "circle", source: "p", paint: { "circle-radius": 5, "circle-color": "#2f9bff", "circle-opacity": .35, "circle-stroke-width": 1, "circle-stroke-color": "#7c5cff" } }); const lons = stats.points.map(p => p[1]), lats = stats.points.map(p => p[0]); fit(map, [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]); }); }
   },

@@ -98,6 +98,7 @@ async fn section(State(app): St, Path((key, section)): Path<(String, String)>) -
     let d = device(&app, &key)?;
     let v = tokio::task::spawn_blocking(move || match section.as_str() {
         "info" => Some(views::info(&d)),
+        "firmware" => Some(views::firmware(&d)),
         "battery" => Some(views::battery(&d)),
         "storage" => Some(views::storage(&d)),
         "maps" => Some(views::maps(&d)),

@@ -96,6 +96,13 @@ pub fn info(d: &DeviceData) -> Value {
     })
 }
 
+pub fn firmware(d: &DeviceData) -> Value {
+    let i = info(d);
+    let mut v = crate::firmware::check(i["descriptor"].as_str().or(i["model"].as_str()).unwrap_or(""), i["firmware"].as_str().unwrap_or(""));
+    v["pending_update"] = i["pending_update"].clone();
+    v
+}
+
 pub fn battery(d: &DeviceData) -> Value {
     let mut hist = Vec::new();
     for s in &d.summaries {

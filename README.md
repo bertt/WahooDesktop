@@ -42,6 +42,7 @@ Notes: map, routing and storage details depend on the firmware's folder layout (
 
 - Device list with online/offline state, battery and storage
 - Overview, firmware/hardware, serial and factory info
+- Firmware update check: compares the installed version with Wahoo's public manifest (`version.json-<model>`) and shows "up to date" or "update available" (also `wahoo_cli firmware`; the only feature that uses the internet, and it fails gracefully offline)
 - Battery history, drain and estimated runtime
 - Storage breakdown by folder
 - Maps: installed tiles on a map (colour by size/version/marker), regions, versions, leftover temp files, routing config, warnings
@@ -122,7 +123,7 @@ curl -i https://cdn.wahooligan.com/wahoo-maps/tilepack-versions.json # 403 Forbi
 - macOS/Linux backends (e.g. the `mtp-rs` crate)
 - Bluetooth (btleplug) for live battery and sensor status
 - Wahoo Cloud API integration
-- Firmware update notifier (using the public `version.json-bolt2`)
+- Firmware update check is implemented; a future step is a one-click download of the update package
 - GPX/FIT export of rides; deleting files from the device
 - Segment analysis (FIT `segment_lap`), heatmap of all rides
 - Sensor battery alerts, multi-device comparison
