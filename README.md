@@ -6,6 +6,8 @@
 
 Wahoo Desktop is a fast, local Rust app that reads a Wahoo ELEMNT (tested with an ELEMNT BOLT2) over **USB (MTP)** and shows everything it can find in a clean native window: firmware, battery, storage, installed maps, sensors, routes, workouts, alerts, ride history and statistics. No cloud account, no phone and no web server are needed; files are mirrored to a local cache so the UI is instant and works offline.
 
+**Website:** https://bertt.github.io/WahooDesktop/
+
 **Platform:** Windows only for now (native WPD COM API). macOS/Linux are planned. This is version 0.1.
 
 ### Screenshots
