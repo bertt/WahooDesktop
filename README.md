@@ -72,6 +72,8 @@ wahoo_cli ls [prefix]
 
 Global flags: `--json`, `--device <name>`.
 
+Full documentation with all commands and examples: **[docs/CLI.md](docs/CLI.md)**.
+
 ## Map data: source and format
 
 What is known (reverse-read from the device, not from official documentation):
