@@ -283,11 +283,11 @@ pub fn maps(d: &DeviceData) -> Value {
             "files_on_device": ["maps/tilepack-versions.json", "maps/tiles_md5", "maps/routing_md5"],
             "examples": [
                 {"title": "Check latest firmware (public, works)", "request": "curl -i https://bolt.wahoofitness.com/boltapp/version.json-bolt2", "result": "200 OK – JSON with std-version and std-url"},
-                {"title": "Map CDN root (not listable)", "request": "curl -i https://cdn.wahooligan.com/wahoo-maps", "result": "403 Forbidden (AmazonS3) – the bucket cannot be listed, but known object paths are readable"},
+                {"title": "Newest build of the same tile", "request": "curl -I https://cdn.wahooligan.com/wahoo-maps/23/tiles/8/131/83.map.lzma", "result": "200 OK – compare Content-Length with the file on the device to see if it is newer"},
                 {"title": "Tile pack list of a map version (used by the ELEMNT app)", "request": "curl -O https://cdn.wahooligan.com/wahoo-maps/23/mappack-gzip.json.gz", "result": "200 OK – gzip JSON with all tile packs of that map version"},
                 {"title": "One map tile (zoom 8, x=131, y=83)", "request": "curl -I https://cdn.wahooligan.com/wahoo-maps/18/tiles/8/131/83.map.lzma", "result": "200 OK – Content-Length, Last-Modified and ETag identify the tile build"},
             ],
-            "note": "Found by reading the ELEMNT companion app (com.wahoofitness.boltcompanion): it downloads <base>/<map version>/mappack-gzip.json.gz, and tiles live at <base>/<version>/tiles/8/<x>/<y>.map.lzma. Both are readable without credentials; only the bucket root and guessed paths return 403. The Mapbox tilepack API (api.mapbox.com/tilepack/v1/...) also appears in the firmware, but only for Mapbox's own tiles.",
+            "note": "Both URLs are readable without credentials. Only the bucket root is not listable. The Mapbox tilepack API (api.mapbox.com/tilepack/v1/...) also appears in the firmware, but only for Mapbox's own tiles.",
         },
     })
 }

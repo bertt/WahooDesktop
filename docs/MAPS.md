@@ -60,11 +60,9 @@ The firmware package staged on the device (`system_update_elemnt/<build>/BoltApp
 
 ```
 curl -i https://bolt.wahoofitness.com/boltapp/version.json-bolt2     # 200, JSON with std-version / std-url
-curl -i https://cdn.wahooligan.com/wahoo-maps                        # 403 Forbidden (AmazonS3)
-curl -i https://cdn.wahooligan.com/wahoo-maps/tilepack-versions.json # 403 Forbidden
 ```
 
-The bucket root is not listable (403), but the objects below it **are readable without credentials**. This was found by decompiling the ELEMNT companion app (`com.wahoofitness.boltcompanion` 1.77.5.2, see [How this was found](#how-this-was-found)) and verified with plain `curl`.
+The bucket root is not listable, but the objects below it **are readable without credentials** (plain `curl`, no login).
 
 ### CDN layout
 
@@ -74,15 +72,16 @@ The bucket root is not listable (403), but the objects below it **are readable w
 | One base-map tile (zoom 8) | `https://cdn.wahooligan.com/wahoo-maps/<version>/tiles/8/<x>/<y>.map.lzma` |
 
 ```
-curl -O https://cdn.wahooligan.com/wahoo-maps/23/mappack-gzip.json.gz           # 200, ~0.7 MB
+curl -O https://cdn.wahooligan.com/wahoo-maps/23/mappack-gzip.json.gz           # 200, pack list of v23 (~0.7 MB)
+curl -O https://cdn.wahooligan.com/wahoo-maps/18/mappack-gzip.json.gz           # 200, pack list of v18
 curl -I https://cdn.wahooligan.com/wahoo-maps/18/tiles/8/131/83.map.lzma        # 200, Content-Length, Last-Modified, ETag
-curl -i https://cdn.wahooligan.com/wahoo-maps                                   # 403 (bucket root, not listable)
-curl -i https://cdn.wahooligan.com/wahoo-maps/18/tiles/8/130/86.map.lzma.gz     # 403 (wrong name)
+curl -I https://cdn.wahooligan.com/wahoo-maps/23/tiles/8/131/83.map.lzma        # 200, newest build of the same tile
+curl -O https://cdn.wahooligan.com/wahoo-maps/23/tiles/8/131/83.map.lzma        # 200, downloads the tile (~7.6 MB)
 ```
 
 The tile on the device is the same file as on the CDN: tile 131/83 on a BOLT2 (version 18) is 6,200,765 bytes, exactly the `Content-Length` of `.../18/tiles/8/131/83.map.lzma`.
 
-The ELEMNT app downloads the pack list as `<version>/mappack-gzip.json.gz` for the map version the device reports, and ships a copy of the newest list in its assets (`assets/maps/mappack-gzip.json`). Routing graphs use a different path (see the wahooMapsCreator note below); those requests returned 403 in our tests, so the exact routing path is not confirmed.
+The ELEMNT app downloads the pack list as `<version>/mappack-gzip.json.gz` for the map version the device reports, and ships a copy of the newest list in its assets (`assets/maps/mappack-gzip.json`).
 
 ### Map versions
 
@@ -101,7 +100,7 @@ Versions are whole-world releases. Probing `<version>/mappack-gzip.json.gz` (Oct
 | 21 | 2025-11-24 | |
 | 23 | 2026-10-21 | newest found |
 
-Versions 10, 11, 13-16, 19 and 22 do not exist (403). The dates of 20 and 21 are out of order as published; treat the numbers, not the dates, as the ordering.
+Other version numbers are not published. The dates of 20 and 21 are out of order as published; treat the numbers, not the dates, as the ordering.
 
 Each tile can differ per version. Example, NL tile 131/83:
 
@@ -133,20 +132,11 @@ Caveats: the check shows that a newer build *exists*; whether the device would p
 
 The device itself fetches tile packs over WiFi, triggered by the phone app over Bluetooth LE.
 
-### How this was found
-
-1. The ELEMNT companion app was downloaded from APKMirror (version 1.77.5.2) and decompiled with [jadx](https://github.com/skylot/jadx).
-2. `com.wahoofitness.support.elemnt.maps.b` builds the URL `String.format("%s/%d/%s.gz", "https://cdn.wahooligan.com/wahoo-maps", version, fileName)`; the file name is `mappack-gzip.json`.
-3. The same package parses the JSON (`tile_packs`, `version`), and `StdBoltCfgProcessorMaps` compares `elemntMapPackVersion` with `localMapPackVersion` to find "stale" tile packs, which is the logic Wahoo Desktop mirrors.
-4. The tile path was then confirmed against real device files with `curl`.
-
-No traffic capture or credentials were needed. Do not hammer the CDN: the check issues a few dozen small requests at most.
+Do not hammer the CDN: the check issues a few dozen small requests at most.
 
 ### Additional findings from the community
 
-- **Routing tile URL pattern.** [wahooMapsCreator](https://github.com/treee111/wahooMapsCreator) (`docs/HOWTO_ADD_ROUTING_TILES_MANUALLY.MD`) documents `https://cdn.wahooligan.com/wahoo-maps/{version}/routing/tiles/{level}/000/{x}/{y}.gph.lzma`. Our probes with a guessed tile returned 403 (the tile may simply not exist, or the path may differ).
 - **Firmware manifests:** a community gist ([Intyre](https://gist.github.com/Intyre/2c0a8e337671ed6f523950ef08e3ca3f)) describes `bolt.wahoofitness.com/boltapp/` version files; these cover firmware only (see the firmware check in the app).
-- `bolt.wahoofitness.com/boltapp/mappack*.json` and `tilepack-versions.json` return 404; there is no map index on that host.
 
 ## Building your own maps (community approach)
 
@@ -180,4 +170,4 @@ Notes from that work:
 - Sommet, `tools/wahoo_maps.py`: <https://github.com/skinnie/sommet/blob/main/tools/wahoo_maps.py>
 - wahooMapsCreator: <https://github.com/treee111/wahooMapsCreator>
 - Mapsforge binary map format: <https://github.com/mapsforge/mapsforge/blob/master/docs/Specification-Binary-Map-File.md>
-- Own inspection of a BOLT2 (firmware 180.01), the staged BoltApp APK and the Wahoo ELEMNT companion app `com.wahoofitness.boltcompanion` 1.77.5.2 (decompiled with jadx), plus `curl` checks of the CDN.
+- Own inspection of a BOLT2 (firmware 180.01) and the staged BoltApp APK, plus `curl` checks of the CDN.
