@@ -7,7 +7,7 @@ What is known about how an ELEMNT stores and receives maps. Most of this is reve
 - [On-device layout](#on-device-layout)
 - [File formats](#file-formats)
 - [Tiles and versions](#tiles-and-versions)
-- [Where Wahoo downloads maps from](#where-wahoo-downloads-maps-from) (CDN layout, map versions, update check)
+- [Where Wahoo downloads maps from](#where-wahoo-downloads-maps-from) (CDN layout, map versions, update check, GeoJSON of all tiles)
 - [Building your own maps (community approach)](#building-your-own-maps-community-approach)
 - [What Wahoo Desktop does and does not do](#what-wahoo-desktop-does-and-does-not-do)
 - [Sources](#sources)
@@ -133,6 +133,27 @@ Caveats: the check shows that a newer build *exists*; whether the device would p
 The device itself fetches tile packs over WiFi, triggered by the phone app over Bluetooth LE.
 
 Do not hammer the CDN: the check issues a few dozen small requests at most.
+
+### GeoJSON of all tiles with download links
+
+`tools/geojson.js` builds a GeoJSON of the whole tile grid, one square polygon per zoom-8 tile, with the CDN download links as attributes. It downloads the pack lists of the chosen versions (6 small requests) and needs only Node 18+, not a device:
+
+```
+node tools/geojson.js wahoo-map-tiles.geojson            # versions 12,17,18,20,21,23 (default)
+node tools/geojson.js tiles.geojson 18,23                # choose versions
+```
+
+The default output is about 29,000 features and 24 MB, so it is not committed (`*.geojson` is git-ignored). Attributes per tile:
+
+| Attribute | Example |
+| --- | --- |
+| `x`, `y`, `zoom` | `131`, `83`, `8` |
+| `latest_version`, `versions` | `23`, `12,17,18,20,21,23` |
+| `packs` | `Europe > Netherlands` (packs of the latest version that contain the tile) |
+| `url_v<version>` | `https://cdn.wahooligan.com/wahoo-maps/18/tiles/8/131/83.map.lzma` |
+| `url_latest` | same as the `url_v` of the latest version |
+
+A `url_v<version>` is only present when that version's pack list contains the tile; the links themselves are not individually checked. Open the file in QGIS, geojson.io or any GIS tool and click a square to get its links.
 
 ### Additional findings from the community
 
