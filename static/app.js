@@ -130,7 +130,7 @@ const VIEWS = {
   },
   async maps(key, el) {
     const m = await get(key, "maps");
-    el.innerHTML = `<div class="grid g4">${kpi("Tiles installed", m.tile_count, fB(m.tile_bytes))}${kpi("Regions", m.regions.length, "covered areas")}${kpi("Map versions", Object.keys(m.versions).join(", ") || "–", Object.entries(m.versions).map(([v, n]) => `v${v}: ${n}`).join(" · "))}${kpi("Routing folders", m.routing.folders, "Valhalla graph tiles")}</div>
+    el.innerHTML = `<div class="grid g4">${kpi("Tiles installed", m.tile_count, fB(m.tile_bytes))}${kpi("Regions", m.regions.length, "covered areas")}${kpi("Map versions", Object.keys(m.versions).join(", ") || "–", Object.entries(m.versions).map(([v, n]) => { const d = (m.version_dates || {})[v]; const r = d ? (fDay(d.oldest) === fDay(d.newest) ? fDay(d.oldest) : `${fDay(d.oldest)} – ${fDay(d.newest)}`) : ""; return `v${v}: ${n}${r ? " (" + r + ")" : ""}`; }).join(" · ") + (Object.keys(m.version_dates || {}).length ? "" : " · date unknown"))}${kpi("Routing folders", m.routing.folders, "Valhalla graph tiles")}</div>
     ${m.warnings.map(w => `<div class="warn" style="margin-top:10px">⚠ ${esc(w)}</div>`).join("")}
     <div class="grid g2" style="margin-top:14px"><div class="card" style="grid-column:1/-1"><h4>Coverage map <span style="float:right;text-transform:none">Colour by <select id="mc"><option value="size">size</option><option value="version">version</option><option value="marker">missing marker</option></select></span></h4><div id="mmap" class="map tall"></div><div class="legend" id="mleg"></div></div>
     ${card("Regions (approx.)", `<div class="scroll" style="max-height:420px"><table><tr><th>Region</th><th class="num">Tiles</th><th class="num">Size</th></tr>${m.regions.map(r => `<tr><td>${esc(r.region)}</td><td class="num">${r.tiles}</td><td class="num">${fB(r.bytes)}</td></tr>`).join("")}</table></div>`)}
@@ -149,7 +149,7 @@ const VIEWS = {
       map.addLayer({ id: "tl", type: "line", source: "t", paint: { "line-color": "#ffffff", "line-opacity": .25, "line-width": .6 } });
       const b = [180, 90, -180, -90]; m.tiles.forEach(t => { b[0] = Math.min(b[0], t.bbox[0]); b[1] = Math.min(b[1], t.bbox[1]); b[2] = Math.max(b[2], t.bbox[2]); b[3] = Math.max(b[3], t.bbox[3]); }); if (m.tiles.length) fit(map, b, 30);
       $("#mc").onchange = () => { map.setPaintProperty("tf", "fill-color", colorExpr[$("#mc").value]); draw(); }; draw();
-      map.on("click", "tf", e => { const p = e.features[0].properties; new maplibregl.Popup().setLngLat(e.lngLat).setHTML(`<b>Tile z${p.z}/${p.x}/${p.y}</b><br>${esc(p.region)}<br>${fB(p.bytes)}<br>version: ${p.version == "null" || p.version == null ? "–" : p.version}`).addTo(map); });
+      map.on("click", "tf", e => { const p = e.features[0].properties; new maplibregl.Popup().setLngLat(e.lngLat).setHTML(`<b>Tile z${p.z}/${p.x}/${p.y}</b><br>${esc(p.region)}<br>${fB(p.bytes)}<br>version: ${p.version == "null" || p.version == null ? "–" : p.version}<br>made/installed: ${p.modified && p.modified != "null" ? fDay(+p.modified) : "unknown"}`).addTo(map); });
       map.on("mouseenter", "tf", () => map.getCanvas().style.cursor = "pointer"); map.on("mouseleave", "tf", () => map.getCanvas().style.cursor = "");
     });
   },

@@ -47,6 +47,7 @@ A route is covered by every tile it touches. Adding a margin (e.g. 10 km around 
 - Versions are kept per Wahoo **tile pack** in `tilepack-versions.json`, not per tile. A tile you replaced yourself is therefore not re-downloaded unless Wahoo publishes a newer version of the pack it belongs to (the official packs date from 2019).
 - The version number in the marker file (`<y>.map.lzma.<version>`) should be kept when replacing a tile; the community tooling reuses the existing marker, or `18` if there is none.
 - Keep Wahoo's original tile before overwriting it, so it can be restored.
+- **When were the maps made?** The device exposes no build date, but every tile file has a modification time. The Maps tab shows, per map version, the date range of its tiles (e.g. `v18: 3000 (Mar 2025 – Jun 2025)`) and the date per tile in the coverage map popup. These dates come from the files' timestamps (tile creation or install time), so treat them as indicative.
 
 ## Where Wahoo downloads maps from
 

@@ -168,6 +168,9 @@ pub fn maps(d: &DeviceData) -> Value {
     let mut tiles = Vec::new();
     let mut markers: BTreeMap<String, u64> = BTreeMap::new();
     let mut versions: BTreeMap<String, u64> = BTreeMap::new();
+    let mut tile_mtime: BTreeMap<String, i64> = BTreeMap::new();
+    let mut marker_mtime: BTreeMap<String, i64> = BTreeMap::new();
+    let mut version_dates: BTreeMap<String, (i64, i64)> = BTreeMap::new();
     let mut pax = (0u64, 0u64);
     let mut routing_dirs = 0u64;
     let mut other = Vec::new();
@@ -191,9 +194,11 @@ pub fn maps(d: &DeviceData) -> Value {
                             let ver = file.rsplit('.').next().filter(|v| v.chars().all(|c| c.is_ascii_digit()) && file.ends_with(v) && !file.ends_with("lzma")).map(|v| v.to_string());
                             let key = format!("{z}/{x}/{y}");
                             if let Some(v) = ver {
-                                markers.insert(key, v.parse().unwrap_or(0));
+                                markers.insert(key.clone(), v.parse().unwrap_or(0));
+                                if let Some(m) = e.modified { marker_mtime.insert(key, m); }
                             } else if file.ends_with(".map.lzma") {
                                 tiles.push((z, x, y, e.size));
+                                if let Some(m) = e.modified { tile_mtime.insert(key, m); }
                             }
                         }
                     }
@@ -224,7 +229,13 @@ pub fn maps(d: &DeviceData) -> Value {
         } else {
             *versions.entry(ver.unwrap().to_string()).or_default() += 1;
         }
-        out_tiles.push(json!({"z": z, "x": x, "y": y, "bytes": size, "version": ver, "bbox": b, "region": r}));
+        let modified = tile_mtime.get(&key).copied().or_else(|| marker_mtime.get(&key).copied()).filter(|m| *m > 0);
+        if let (Some(v), Some(m)) = (ver, modified) {
+            let r = version_dates.entry(v.to_string()).or_insert((m, m));
+            r.0 = r.0.min(m);
+            r.1 = r.1.max(m);
+        }
+        out_tiles.push(json!({"z": z, "x": x, "y": y, "bytes": size, "version": ver, "modified": modified, "bbox": b, "region": r}));
     }
     let tile_keys: std::collections::HashSet<String> = tiles.iter().map(|(z, x, y, _)| format!("{z}/{x}/{y}")).collect();
     let orphan_markers = markers.keys().filter(|k| !tile_keys.contains(*k)).count();
@@ -254,6 +265,7 @@ pub fn maps(d: &DeviceData) -> Value {
         "tile_bytes": total,
         "regions": reg,
         "versions": versions,
+        "version_dates": version_dates.iter().map(|(v, (a, b))| (v.clone(), json!({"oldest": a, "newest": b}))).collect::<serde_json::Map<String, Value>>(),
         "temp": temp,
         "temp_bytes": temp_bytes,
         "tilepacks": d.tilepacks,
