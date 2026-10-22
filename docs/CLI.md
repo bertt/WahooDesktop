@@ -45,6 +45,7 @@ Exit code is `0` on success and `1` on error (message on stderr).
 | `battery` | no | Battery level, history and drain statistics |
 | `storage` | no | Capacity and usage breakdown per folder |
 | `maps` | no | Installed map tiles, regions, versions and warnings |
+| `map-updates` | no | Checks Wahoo's public map CDN for newer map versions per tile pack (needs internet). `--tile 131/83` compares one installed tile with the newest version (size, last-modified, download URL) |
 | `sensors` | no | Sensor readings (temperature, altitude, ...) and sensors seen by the device |
 | `routes` | no | Saved routes |
 | `plans` | no | Planned workouts |

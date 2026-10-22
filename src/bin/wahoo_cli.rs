@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::sync::Arc;
 use wahoo_desktop::{app::App, mtp, views};
 
@@ -36,6 +36,11 @@ enum Cmd {
     Storage,
     /// Installed map tiles, regions, versions and warnings
     Maps,
+    /// Check whether newer map versions exist (needs internet); `--tile x/y` checks one tile
+    MapUpdates {
+        #[arg(long)]
+        tile: Option<String>,
+    },
     /// Sensors seen by the device
     Sensors,
     /// Saved routes
@@ -158,6 +163,37 @@ fn run(cli: Cli) -> Result<(), String> {
         Cmd::Battery => views::battery(&d),
         Cmd::Storage => views::storage(&d),
         Cmd::Maps => views::maps(&d),
+        Cmd::MapUpdates { tile } => {
+            let r = wahoo_desktop::mapupdates::check(&d.tilepacks);
+            let Some(t) = tile else {
+                if cli.json {
+                    print_json(&r);
+                } else {
+                    println!("{}", r["message"].as_str().unwrap_or(""));
+                    for p in r["packs"].as_array().into_iter().flatten() {
+                        println!("  {:>4} {:<42} v{:<3} {:<10} -> v{} {}", p["id"], p["name"].as_str().unwrap_or("?"), p["installed_version"], p["installed_date"].as_str().unwrap_or("?"), p["latest_version"], if p["status"] == "update_available" { "UPDATE" } else { "ok" });
+                    }
+                    println!("Latest tiles: {}", r["tile_url"].as_str().unwrap_or(""));
+                }
+                return Ok(());
+            };
+            let parts: Vec<u32> = t.split('/').filter_map(|p| p.trim().parse().ok()).collect();
+            let [x, y] = parts[..] else { return Err("tile must be written x/y, e.g. 131/83".into()) };
+            let m = views::maps(&d);
+            let dev = m["tiles"].as_array().and_then(|a| a.iter().find(|v| v["x"] == x && v["y"] == y)).cloned().ok_or("that tile is not installed on the device")?;
+            let latest = r["latest_version"].as_u64().ok_or("could not determine the latest map version (offline?)")? as u32;
+            let remote = wahoo_desktop::mapupdates::tile(latest, x, y, dev["bytes"].as_u64());
+            let out = json!({"tile": t, "device": {"version": dev["version"], "bytes": dev["bytes"], "modified": dev["modified"]}, "latest_version": latest, "remote": remote});
+            if cli.json {
+                print_json(&out);
+            } else {
+                println!("Tile {t} on device: v{} {} ({})", dev["version"], bytes(dev["bytes"].as_u64().unwrap_or(0)), dev["modified"].as_i64().map(when).unwrap_or_default());
+                println!("Latest v{latest}:   {} (last modified {})", remote["remote_bytes"].as_u64().map(bytes).unwrap_or_else(|| "?".into()), remote["remote_modified"].as_str().unwrap_or("?"));
+                println!("Status:            {}", if dev["version"].as_u64() == Some(latest as u64) { "on the latest version" } else { "a newer version of this tile is available" });
+                println!("Download:          {}", remote["url"].as_str().unwrap_or(""));
+            }
+            return Ok(());
+        }
         Cmd::Sensors => views::sensors(&d),
         Cmd::Routes => views::routes(&d),
         Cmd::Plans => views::plans(&d),

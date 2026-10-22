@@ -42,7 +42,8 @@ Notes: map, routing and storage details depend on the firmware's folder layout (
 
 - Device list with online/offline state, battery and storage
 - Overview, firmware/hardware, serial and factory info
-- Firmware update check: compares the installed version with Wahoo's public manifest (`version.json-<model>`) and shows "up to date" or "update available" (also `wahoo_cli firmware`; the only feature that uses the internet, and it fails gracefully offline)
+- Firmware update check: compares the installed version with Wahoo's public manifest (`version.json-<model>`) and shows "up to date" or "update available" (also `wahoo_cli firmware`; one of two features that use the internet, and it fails gracefully offline)
+- Map update check: resolves tile pack ids to names and compares each pack's version with the newest map version on Wahoo's public CDN (Maps tab, `wahoo_cli map-updates [--tile x/y]`)
 - Battery history, drain and estimated runtime
 - Storage breakdown by folder
 - Maps: installed tiles on a map (colour by size/version/marker), regions, versions, leftover temp files, routing config, warnings
@@ -80,14 +81,14 @@ Full documentation with all commands and examples: **[docs/CLI.md](docs/CLI.md)*
 Summary (reverse-read from the device, not official documentation):
 
 - Maps are stored as one Mapsforge map per zoom-8 slippy tile: `maps/tiles/8/<x>/<y>.map.lzma` (LZMA-compressed, 2-15 MB typical), with a zero-byte version marker next to it.
-- Wahoo's CDN (`https://cdn.wahooligan.com/wahoo-maps`) returns 403 for anonymous requests, so maps cannot be downloaded over plain HTTPS.
+- Wahoo's map CDN (`https://cdn.wahooligan.com/wahoo-maps`) cannot be listed (403), but its objects are public: `<version>/mappack-gzip.json.gz` (tile pack list) and `<version>/tiles/8/<x>/<y>.map.lzma` (tiles). This makes a map update check possible.
 - Community tools show that tiles can also be built from OpenStreetMap and copied to the device over USB.
 
 Full details (layout, formats, tile maths, versions, building your own maps): **[docs/MAPS.md](docs/MAPS.md)**.
 
 ## Limitations
 
-- **Downloading maps is not possible.** Over USB the device does not accept map downloads (it fetches tile packs over WiFi, triggered by the phone app over BLE), and the HTTPS source requires credentials (see above).
+- **Maps are not written to the device.** Tiles can be downloaded from the public CDN, but Wahoo Desktop only checks for updates; installing a tile over USB is not implemented (see [docs/MAPS.md](docs/MAPS.md)).
 - Alerts are derived (low storage/battery, staged firmware, crash files, leftover maps); the device does not store alert definitions in readable form.
 - Live battery/sensor data over Bluetooth is not implemented.
 
@@ -102,7 +103,7 @@ Full details (layout, formats, tile maths, versions, building your own maps): **
 - Sensor battery alerts, multi-device comparison
 - Reclaiming space from `maps/temp`
 - Ride selector for the sensor charts, decoding of manufacturer FIT messages
-- Real map downloads once the CDN protocol is understood
+- Install a newer tile from the CDN over USB (download, keep the original, update the version marker)
 
 ## Building the installer and releases
 

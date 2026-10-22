@@ -2936,6 +2936,7 @@ dependencies = [
  "chrono",
  "clap",
  "fitparser",
+ "flate2",
  "nusb",
  "serde",
  "serde_json",

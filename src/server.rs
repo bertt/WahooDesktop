@@ -99,6 +99,7 @@ async fn section(State(app): St, Path((key, section)): Path<(String, String)>) -
     let v = tokio::task::spawn_blocking(move || match section.as_str() {
         "info" => Some(views::info(&d)),
         "firmware" => Some(views::firmware(&d)),
+        "mapupdates" => Some(crate::mapupdates::check(&d.tilepacks)),
         "battery" => Some(views::battery(&d)),
         "storage" => Some(views::storage(&d)),
         "maps" => Some(views::maps(&d)),

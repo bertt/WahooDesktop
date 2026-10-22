@@ -7,7 +7,7 @@ What is known about how an ELEMNT stores and receives maps. Most of this is reve
 - [On-device layout](#on-device-layout)
 - [File formats](#file-formats)
 - [Tiles and versions](#tiles-and-versions)
-- [Where Wahoo downloads maps from](#where-wahoo-downloads-maps-from)
+- [Where Wahoo downloads maps from](#where-wahoo-downloads-maps-from) (CDN layout, map versions, update check)
 - [Building your own maps (community approach)](#building-your-own-maps-community-approach)
 - [What Wahoo Desktop does and does not do](#what-wahoo-desktop-does-and-does-not-do)
 - [Sources](#sources)
@@ -44,7 +44,7 @@ A route is covered by every tile it touches. Adding a margin (e.g. 10 km around 
 
 ## Tiles and versions
 
-- Versions are kept per Wahoo **tile pack** in `tilepack-versions.json`, not per tile. A tile you replaced yourself is therefore not re-downloaded unless Wahoo publishes a newer version of the pack it belongs to (the official packs date from 2019).
+- Versions are kept per Wahoo **tile pack** in `tilepack-versions.json` (`[{"<pack id>": <map version>}]`), not per tile. Newer map versions exist on the CDN (see [Map versions](#map-versions)); the ELEMNT app marks packs below the newest version as stale.
 - The version number in the marker file (`<y>.map.lzma.<version>`) should be kept when replacing a tile; the community tooling reuses the existing marker, or `18` if there is none.
 - Keep Wahoo's original tile before overwriting it, so it can be restored.
 - **When were the maps made?** The device exposes no build date, but every tile file has a modification time. The Maps tab shows, per map version, the date range of its tiles (e.g. `v18: 3000 (Mar 2025 – Jun 2025)`) and the date per tile in the coverage map popup. These dates come from the files' timestamps (tile creation or install time), so treat them as indicative.
@@ -64,31 +64,89 @@ curl -i https://cdn.wahooligan.com/wahoo-maps                        # 403 Forbi
 curl -i https://cdn.wahooligan.com/wahoo-maps/tilepack-versions.json # 403 Forbidden
 ```
 
-**Not yet known:** the object layout under the CDN base and how the device/app is authorised. The bucket rejects anonymous requests, so plain HTTPS downloads do not work without credentials (probably signed URLs obtained from the Wahoo cloud or phone app). The firmware only holds the names `tile_packs`, `tile_pack_id` and `tilepack-versions.json`. Capturing the traffic of the ELEMNT app during a map download (e.g. with mitmproxy) would reveal the real requests; this project does not do that.
+The bucket root is not listable (403), but the objects below it **are readable without credentials**. This was found by decompiling the ELEMNT companion app (`com.wahoofitness.boltcompanion` 1.77.5.2, see [How this was found](#how-this-was-found)) and verified with plain `curl`.
+
+### CDN layout
+
+| What | URL |
+| --- | --- |
+| Tile pack list of a map version (gzip JSON) | `https://cdn.wahooligan.com/wahoo-maps/<version>/mappack-gzip.json.gz` |
+| One base-map tile (zoom 8) | `https://cdn.wahooligan.com/wahoo-maps/<version>/tiles/8/<x>/<y>.map.lzma` |
+
+```
+curl -O https://cdn.wahooligan.com/wahoo-maps/23/mappack-gzip.json.gz           # 200, ~0.7 MB
+curl -I https://cdn.wahooligan.com/wahoo-maps/18/tiles/8/131/83.map.lzma        # 200, Content-Length, Last-Modified, ETag
+curl -i https://cdn.wahooligan.com/wahoo-maps                                   # 403 (bucket root, not listable)
+curl -i https://cdn.wahooligan.com/wahoo-maps/18/tiles/8/130/86.map.lzma.gz     # 403 (wrong name)
+```
+
+The tile on the device is the same file as on the CDN: tile 131/83 on a BOLT2 (version 18) is 6,200,765 bytes, exactly the `Content-Length` of `.../18/tiles/8/131/83.map.lzma`.
+
+The ELEMNT app downloads the pack list as `<version>/mappack-gzip.json.gz` for the map version the device reports, and ships a copy of the newest list in its assets (`assets/maps/mappack-gzip.json`). Routing graphs use a different path (see the wahooMapsCreator note below); those requests returned 403 in our tests, so the exact routing path is not confirmed.
+
+### Map versions
+
+Versions are whole-world releases. Probing `<version>/mappack-gzip.json.gz` (October 2026) found these (the `created_date` is inside the JSON):
+
+| Version | Created | Notes |
+| --- | --- | --- |
+| 1-4 | 2015-07-22 | |
+| 5-6 | 2018-11-29 | |
+| 7 | 2019-04-27 | |
+| 8 | 2019-07-30 | |
+| 9, 12 | 2019-08-02 | v12 is what older packs on a BOLT2 report |
+| 17 | 2022-06-08 | |
+| 18 | 2023-08-10 | bundled with app 1.77.5.2 |
+| 20 | 2026-04-28 | |
+| 21 | 2025-11-24 | |
+| 23 | 2026-10-21 | newest found |
+
+Versions 10, 11, 13-16, 19 and 22 do not exist (403). The dates of 20 and 21 are out of order as published; treat the numbers, not the dates, as the ordering.
+
+Each tile can differ per version. Example, NL tile 131/83:
+
+| Version | Size | Last-Modified |
+| --- | --- | --- |
+| 12 | 4.5 MB | 2021-01-30 |
+| 17 | 5.9 MB | 2022-05-24 |
+| 18 | 6.2 MB | 2023-08-10 |
+| 20 | 6.7 MB | 2024-09-09 |
+| 21 | 7.3 MB | 2025-11-24 |
+| 23 | 7.6 MB | 2026-10-21 |
+
+### Tile pack list format
+
+`mappack-gzip.json` is an object with `version`, `created_date`, `size`, `routing_size`, `routing_elevation_size`, `enhanced_size` and `tile_packs`. Packs are nested (continent, country, region) through `sub_packs`. Each pack has `id`, `name`, `size`, `routing_size`, `routing_elevation_size`, `enhanced_size`, `hidden`, `allow_download_all` and `tile_sets`; a tile set has `zoom` (8), `tile_coordinates` (`[x, y]` pairs) and `routing_coordinates`. Version 23 holds 407 packs.
+
+The ids in the device's `tilepack-versions.json` resolve through this list. On the tested BOLT2: 127 = Europe > Belgium, 156 = Europe > Netherlands, 166 = Europe > Spain, 251 = United States > Pennsylvania, and 372-384 = the Canadian provinces and territories (Alberta to Yukon).
+
+### Is there an update for a tile or pack?
+
+Yes: compare the version on the device with the newest version on the CDN.
+
+- **Pack level:** `tilepack-versions.json` gives the installed version per pack; any pack below the newest published version has a newer build.
+- **Tile level:** a `HEAD` request on `<newest>/tiles/8/<x>/<y>.map.lzma` returns the size and `Last-Modified`; if the size equals the file on the device, it is the same build.
+
+Wahoo Desktop does this: the Maps tab has a **Map updates** card, and `wahoo_cli map-updates [--tile x/y]` prints the same information (needs internet). See [docs/CLI.md](CLI.md). The newest version is found by probing the next 25 version numbers after the newest installed one.
+
+Caveats: the check shows that a newer build *exists*; whether the device would pick it up automatically is up to the ELEMNT app. A new version may be larger (v23 packs are about 70 % bigger than v12), so check free space first.
 
 The device itself fetches tile packs over WiFi, triggered by the phone app over Bluetooth LE.
 
+### How this was found
+
+1. The ELEMNT companion app was downloaded from APKMirror (version 1.77.5.2) and decompiled with [jadx](https://github.com/skylot/jadx).
+2. `com.wahoofitness.support.elemnt.maps.b` builds the URL `String.format("%s/%d/%s.gz", "https://cdn.wahooligan.com/wahoo-maps", version, fileName)`; the file name is `mappack-gzip.json`.
+3. The same package parses the JSON (`tile_packs`, `version`), and `StdBoltCfgProcessorMaps` compares `elemntMapPackVersion` with `localMapPackVersion` to find "stale" tile packs, which is the logic Wahoo Desktop mirrors.
+4. The tile path was then confirmed against real device files with `curl`.
+
+No traffic capture or credentials were needed. Do not hammer the CDN: the check issues a few dozen small requests at most.
+
 ### Additional findings from the community
 
-- **Routing tile URL pattern.** [wahooMapsCreator](https://github.com/treee111/wahooMapsCreator) (`docs/HOWTO_ADD_ROUTING_TILES_MANUALLY.MD`) documents `https://cdn.wahooligan.com/wahoo-maps/{version}/routing/tiles/{level}/000/{x}/{y}.gph.lzma` ("the latest map version is 12; level is 2; x, y are both 3-digit map tile indexes"). The routing tile ids are listed in a `mappack-gzip.json` on Wahoo's update server.
-- **Base-map versions** are kept per tile pack in `tilepack-versions.json` (see [Tiles and versions](#tiles-and-versions)); the routing version in the URL is not necessarily the same as the base-map version on the device.
-- **Firmware manifests:** a community gist ([Intyre](https://gist.github.com/Intyre/2c0a8e337671ed6f523950ef08e3ca3f)) describes `bolt.wahoofitness.com/boltapp/` version files; these cover firmware only.
-
-### Tested (October 2026)
-
-| Request | Result |
-| --- | --- |
-| `https://cdn.wahooligan.com/wahoo-maps/12/routing/tiles/2/000/001/001.gph.lzma` | 403 |
-| `https://cdn.wahooligan.com/wahoo-maps/18/routing/tiles/2/000/001/001.gph.lzma` | 403 |
-| `https://cdn.wahooligan.com/wahoo-maps/mappack-gzip.json` | 403 |
-| `https://bolt.wahoofitness.com/boltapp/mappack-gzip.json` and `mappack.json` | 404 |
-| `https://bolt.wahoofitness.com/boltapp/tilepack-versions.json` | 404 |
-
-**Still unknown:** a public index of the latest tile-pack versions, the meaning of the tile pack ids (e.g. 127, 156, 372-384 on a BOLT2) and a dated version history. This means there is no reliable "is there an update for this tile?" check yet.
-
-### How to find out: capture the app's traffic
-
-A map download by the ELEMNT app (or the ELEMNT over WiFi) would reveal how the pack index is requested and how download URLs are signed. A proxy such as [mitmproxy](https://mitmproxy.org/) can record this: point the phone's WiFi proxy at the PC, install the mitmproxy CA on the phone and start a map download. Look at hosts `*.wahooligan.com` and `bolt.wahoofitness.com`. Expect certificate pinning on newer app versions, which blocks this. Do not publish tokens or signed URLs from the capture, and respect Wahoo's terms of use.
+- **Routing tile URL pattern.** [wahooMapsCreator](https://github.com/treee111/wahooMapsCreator) (`docs/HOWTO_ADD_ROUTING_TILES_MANUALLY.MD`) documents `https://cdn.wahooligan.com/wahoo-maps/{version}/routing/tiles/{level}/000/{x}/{y}.gph.lzma`. Our probes with a guessed tile returned 403 (the tile may simply not exist, or the path may differ).
+- **Firmware manifests:** a community gist ([Intyre](https://gist.github.com/Intyre/2c0a8e337671ed6f523950ef08e3ca3f)) describes `bolt.wahoofitness.com/boltapp/` version files; these cover firmware only (see the firmware check in the app).
+- `bolt.wahoofitness.com/boltapp/mappack*.json` and `tilepack-versions.json` return 404; there is no map index on that host.
 
 ## Building your own maps (community approach)
 
@@ -113,13 +171,13 @@ Notes from that work:
 
 ## What Wahoo Desktop does and does not do
 
-- **Does:** read `maps/` over USB (MTP), list installed tiles with their coverage on a map, sizes, dates, versions and the map-source details above.
-- **Does not (yet):** download maps from Wahoo (credentials are required) or build maps from OpenStreetMap.
-- **Possible future work:** since tiles are ordinary files under `maps/tiles/8/`, writing a locally built tile over USB/MTP should be feasible, following the procedure above. This is untested with Wahoo Desktop; try it only with a backup of the original tile, and expect that the device may need a restart to pick up changes.
+- **Does:** read `maps/` over USB (MTP); list installed tiles with their coverage, sizes, dates and versions; resolve pack ids to names; check the public CDN for newer map versions per pack (Maps tab, `wahoo_cli map-updates`) and compare a single tile (`--tile x/y`).
+- **Does not (yet):** write downloaded tiles to the device or build maps from OpenStreetMap.
+- **Possible future work:** download a newer tile from the CDN and write it to `maps/tiles/8/<x>/<y>.map.lzma` over USB/MTP, following the install procedure above (keep the original and update the version marker). This is untested with Wahoo Desktop; try it only with a backup of the original tile, and expect that the device may need a restart to pick up changes.
 
 ## Sources
 
 - Sommet, `tools/wahoo_maps.py`: <https://github.com/skinnie/sommet/blob/main/tools/wahoo_maps.py>
 - wahooMapsCreator: <https://github.com/treee111/wahooMapsCreator>
 - Mapsforge binary map format: <https://github.com/mapsforge/mapsforge/blob/master/docs/Specification-Binary-Map-File.md>
-- Own inspection of a BOLT2 (firmware 180.01) and the staged BoltApp APK.
+- Own inspection of a BOLT2 (firmware 180.01), the staged BoltApp APK and the Wahoo ELEMNT companion app `com.wahoofitness.boltcompanion` 1.77.5.2 (decompiled with jadx), plus `curl` checks of the CDN.
