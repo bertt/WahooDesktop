@@ -67,7 +67,41 @@ wahoo_cli ls maps/tiles/8/
 wahoo_cli pull system_update_elemnt/18001/BoltApp BoltApp.apk
 ```
 
-Tips:
+## Using wahoo_cli with AI agents and skills
+
+The CLI is designed to be easy for coding agents (GitHub Copilot CLI, Claude Code, and similar) and for agent skills to call: it is non-interactive, returns a non-zero exit code on failure, and `--json` gives structured output that is the same data the desktop UI shows.
+
+Guidelines for an agent or skill:
+
+1. Run `wahoo_cli status --json` first. If the status is not online, ask the user to connect and switch on the ELEMNT instead of retrying.
+2. Run `wahoo_cli sync` only when fresh data is needed. Every read command works from the local cache and is instant.
+3. Always pass `--json` and parse the output rather than scraping the text format.
+4. Treat `add-route` as a write action: confirm with the user first. Do not use `pull` or `ls` on large folders such as `maps/tiles` unless asked; they are slow and large.
+5. Do not paste serial numbers or the output of `debug` into public places without the user's consent.
+
+Example prompts that work well with an agent that has shell access:
+
+- "Sync my Wahoo and tell me how much storage the maps use."
+- "Show my last 10 rides as a table and flag any over 100 km."
+- "Add `route.gpx` to my Wahoo."
+- "Why is my battery draining faster this month? Use `wahoo_cli --json battery`."
+
+A minimal skill or instruction file (for example `SKILL.md` or `AGENTS.md`) could look like this:
+
+```markdown
+---
+name: wahoo-cli
+description: Read a Wahoo ELEMNT over USB and answer questions about its battery, storage, maps, routes and rides using wahoo_cli.
+---
+
+- Check the connection: `wahoo_cli status --json`
+- Refresh data when needed: `wahoo_cli sync`
+- Query with JSON: `wahoo_cli --json battery | storage | maps | sensors | routes | plans | alerts | stats`
+- Rides: `wahoo_cli --json history -n 20`, then `wahoo_cli --json activity "<id>"`
+- Ask before running `wahoo_cli add-route <file>`.
+```
+
+## Tips
 
 - Wrap an activity id that contains spaces in quotes.
 - `--json` output is the same data the desktop UI uses, so it is a convenient way to attach diagnostics to an issue (`wahoo_cli --json debug`).
