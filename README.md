@@ -10,9 +10,23 @@ Wahoo Desktop is a fast, local Rust app that reads a Wahoo ELEMNT (tested with a
 
 ### Screenshots
 
-| Maps | Sensors | History |
+| Maps | Sensors | Statistics |
 | --- | --- | --- |
-| ![Maps](docs/screenshots/maps.png) | ![Sensors](docs/screenshots/sensors.png) | ![History](docs/screenshots/history.png) |
+| ![Maps](docs/screenshots/maps.png) | ![Sensors](docs/screenshots/sensors.png) | ![Statistics](docs/screenshots/statistics.png) |
+
+## Supported devices
+
+The app reads the device as a standard USB MTP storage device and parses its FIT files, so it should work with Wahoo ELEMNT head units that expose such storage. Only the BOLT2 has been verified.
+
+| Device | Firmware | Status |
+| --- | --- | --- |
+| ELEMNT BOLT2 (BOLT F9F1) | 180.01 | Tested (all features) |
+| ELEMNT BOLT (v1) | - | Untested, expected to work |
+| ELEMNT ROAM / ROAM 2 | - | Untested, expected to work |
+| ELEMNT ACE | - | Untested, expected to work |
+| ELEMNT (original) | - | Untested; older firmware, folder layout may differ |
+
+Notes: map, routing and storage details depend on the firmware's folder layout (`maps/`, `routes/`, `plans/`, `exports/`). Other devices may show missing sections. Reports with the **Technical** tab output are welcome. Wahoo KICKR/trainers and sensors are not supported.
 
 ## Installation
 
