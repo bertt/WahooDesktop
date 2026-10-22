@@ -77,40 +77,13 @@ Full documentation with all commands and examples: **[docs/CLI.md](docs/CLI.md)*
 
 ## Map data: source and format
 
-What is known (reverse-read from the device, not from official documentation):
+Summary (reverse-read from the device, not official documentation):
 
-**Where the device downloads from.** The firmware package staged on the device (`system_update_elemnt/<build>/BoltApp`, an Android APK; fetch it with `wahoo_cli pull`) contains these endpoints:
+- Maps are stored as one Mapsforge map per zoom-8 slippy tile: `maps/tiles/8/<x>/<y>.map.lzma` (LZMA-compressed, 2-15 MB typical), with a zero-byte version marker next to it.
+- Wahoo's CDN (`https://cdn.wahooligan.com/wahoo-maps`) returns 403 for anonymous requests, so maps cannot be downloaded over plain HTTPS.
+- Community tools show that tiles can also be built from OpenStreetMap and copied to the device over USB.
 
-| Purpose | URL |
-| --- | --- |
-| Map CDN base | `https://cdn.wahooligan.com/wahoo-maps` |
-| Firmware manifest (BOLT2) | `https://bolt.wahoofitness.com/boltapp/version.json-bolt2` (also `-bolt`, `-roam`, `-roam2`, `-ace`) |
-
-```
-curl -i https://bolt.wahoofitness.com/boltapp/version.json-bolt2     # 200, JSON with std-version / std-url
-curl -i https://cdn.wahooligan.com/wahoo-maps                        # 403 Forbidden (AmazonS3)
-curl -i https://cdn.wahooligan.com/wahoo-maps/tilepack-versions.json # 403 Forbidden
-```
-
-**Not yet known:** the object layout under the CDN base, and how the device/app is authorised. The bucket rejects anonymous requests, so plain HTTPS downloads do not work without credentials (probably signed URLs obtained from the Wahoo cloud or phone app). The firmware only holds the names `tile_packs`, `tile_pack_id` and `tilepack-versions.json`. Capturing the traffic of the ELEMNT app during a map download (e.g. with mitmproxy) would reveal the real requests; this tool does not do that. This document will be extended once that is known.
-
-**On-device layout (`maps/`).**
-
-| Path | Meaning |
-| --- | --- |
-| `tiles/<z>/<x>/<y>.map.lzma` | One map tile. `z` is always `8` (slippy-map tile numbering, about 156 km wide at the equator). |
-| `tiles/<z>/<x>/<y>.map.lzma.<version>` | Zero-byte version marker next to the tile (e.g. `.12`, `.18`). |
-| `tilepack-versions.json` | `[{"<tile pack id>": <version>}, ...]` |
-| `tiles_md5`, `routing_md5` | Checksum lists used for integrity checks. |
-| `temp/z8x<x>y<y>.map` | Tiles extracted during an update; leftovers can be deleted. |
-| `routing/<level>/<aaa>/<bbb>/<ccc>.gph.lzma` | Valhalla routing graph tiles (level 2 = local roads). |
-| `routing/routing-config.json` | Valhalla service configuration (loki / meili / thor). |
-
-**File formats.**
-
-- `*.map.lzma` is an LZMA-alone stream (header `5d 00 00 00 04` followed by an unknown-size marker `ff ff ff ff ff ff ff ff`, 64 MB dictionary). Decompressed, it is a [Mapsforge](https://github.com/mapsforge/mapsforge/blob/master/docs/Specification-Binary-Map-File.md) binary map; the header starts with `mapsforge binary OSM`. The firmware also references `mapsforge.org/renderTheme`.
-- `*.gph.lzma` is an LZMA-compressed Valhalla graph tile.
-- Tiles are about 0.3 kB (almost empty ocean) up to roughly 45 MB per tile.
+Full details (layout, formats, tile maths, versions, building your own maps): **[docs/MAPS.md](docs/MAPS.md)**.
 
 ## Limitations
 
