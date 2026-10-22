@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wahoo Desktop</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">⚡</span> Wahoo Desktop</div>
+  <div id="conn" class="pill pill-grey">Checking…</div>
+  <div class="spacer"></div>
+  <button id="syncBtn" class="btn primary">⟳ Sync device</button>
+</header>
+<div id="syncPanel" class="sync-panel hidden"></div>
+<main>
+  <aside id="devices"></aside>
+  <section id="content"><div class="empty">Loading…</div></section>
+</main>
+<div id="modal" class="modal hidden"><div class="modal-box"><button class="close" id="modalClose">✕</button><div id="modalBody"></div></div></div>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

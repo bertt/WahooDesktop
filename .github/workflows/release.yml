@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 1.2.3), build only, no release upload"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: ver
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'release') { $v = '${{ github.event.release.tag_name }}' } else { $v = '${{ inputs.version }}' }
+          $v = $v.TrimStart('v')
+          if ($v -notmatch '^\d+\.\d+\.\d+') { throw "Tag '$v' is not a semantic version (x.y.z)" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Stamp version into Cargo.toml
+        shell: pwsh
+        run: |
+          $f = 'Cargo.toml'
+          $t = Get-Content $f -Raw
+          $t = [regex]::Replace($t, '(?m)^version = ".*"', 'version = "${{ steps.ver.outputs.version }}"', 1)
+          Set-Content $f $t -NoNewline
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.ver.outputs.version }}" installer\wahoo-desktop.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WahooDesktop-Setup-${{ steps.ver.outputs.version }}
+          path: dist/*.exe
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "dist/WahooDesktop-Setup-${{ steps.ver.outputs.version }}.exe" --clobber

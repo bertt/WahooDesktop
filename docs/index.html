@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wahoo Desktop – read your Wahoo ELEMNT over USB</title>
+<meta name="description" content="Wahoo Desktop is a fast, local Rust app that reads a Wahoo ELEMNT over USB and shows battery, storage, maps, sensors, routes and rides.">
+<link rel="icon" href="icon.png">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.6 system-ui, "Segoe UI", sans-serif; background: #0b1220; color: #dbe4f3; }
+  main { max-width: 1040px; margin: 0 auto; padding: 56px 24px 80px; }
+  header { text-align: center; }
+  header img { width: 96px; height: 96px; }
+  h1 { font-size: 2.6rem; margin: 12px 0 4px; color: #fff; }
+  .tag { color: #8da2c0; font-size: 1.15rem; margin: 0 auto 28px; max-width: 640px; }
+  .btn { display: inline-block; padding: 14px 28px; border-radius: 12px; background: linear-gradient(135deg, #1fb6ff, #2b6df0); color: #fff; font-weight: 600; text-decoration: none; }
+  .btn.alt { background: #172136; border: 1px solid #2a3a58; margin-left: 10px; }
+  .note { color: #8da2c0; font-size: .9rem; margin-top: 12px; }
+  .hero { margin: 44px 0 20px; border-radius: 14px; border: 1px solid #22304a; width: 100%; box-shadow: 0 20px 60px #0008; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 16px 0 40px; }
+  .grid img { width: 100%; border-radius: 10px; border: 1px solid #22304a; }
+  h2 { color: #fff; margin-top: 48px; }
+  ul { padding-left: 20px; }
+  li { margin: 4px 0; }
+  code { background: #172136; padding: 2px 6px; border-radius: 6px; }
+  footer { margin-top: 60px; color: #6c809e; font-size: .9rem; text-align: center; }
+  a { color: #5fc1ff; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icon.png" alt="Wahoo Desktop icon">
+    <h1>Wahoo Desktop</h1>
+    <p class="tag">A fast, local desktop app that reads your Wahoo ELEMNT over USB. No cloud, no phone, no account.</p>
+    <a class="btn" href="https://github.com/bertt/WahooDesktop/releases/latest">Download for Windows</a>
+    <a class="btn alt" href="https://github.com/bertt/WahooDesktop">View on GitHub</a>
+    <p class="note">Version 0.1 · Windows 10/11 · tested with ELEMNT BOLT2 · installer: <code>WahooDesktop-Setup-0.1.0.exe</code></p>
+  </header>
+
+  <img class="hero" src="screenshots/maps.png" alt="Maps tab showing installed map tiles on a world map">
+
+  <h2>What it does</h2>
+  <p>Connect your ELEMNT with a data cable, switch it on and click <b>Sync device</b>. Everything is mirrored to a local cache, so the app is instant and works offline. Built in Rust with a native window (no web server, no open ports).</p>
+  <ul>
+    <li><b>Device:</b> firmware, hardware, battery history and storage breakdown</li>
+    <li><b>Maps:</b> installed tiles on a map, regions, versions, leftover files and warnings</li>
+    <li><b>Sensors:</b> temperature, altitude and acceleration charts from your rides</li>
+    <li><b>Routes:</b> view saved routes on a map, drag and drop a <code>.gpx</code> or <code>.fit</code> to add one</li>
+    <li><b>History:</b> sortable activity list with map, charts, laps and statistics</li>
+    <li><b>Alerts &amp; workouts</b>, personal records, and a <code>wahoo_cli</code> command-line tool</li>
+  </ul>
+
+  <div class="grid">
+    <img src="screenshots/sensors.png" alt="Sensors tab">
+    <img src="screenshots/history.png" alt="History tab">
+  </div>
+
+  <h2>Install</h2>
+  <p>Download the installer from the <a href="https://github.com/bertt/WahooDesktop/releases/latest">latest release</a> and run it. It installs per user (no admin rights needed). Requires the WebView2 runtime, which is preinstalled on current Windows versions. macOS and Linux are planned.</p>
+
+  <footer>Wahoo Desktop is an independent project and is not affiliated with Wahoo Fitness.</footer>
+</main>
+</body>
+</html>
