@@ -19,16 +19,12 @@ What is known about how an ELEMNT stores and receives maps. Most of this is reve
 | `maps/tiles/<z>/<x>/<y>.map.lzma` | One map tile. `z` is always `8` (slippy-map numbering, about 156 km wide at the equator, roughly 150 x 110 km in the Netherlands). |
 | `maps/tiles/<z>/<x>/<y>.map.lzma.<version>` | Zero-byte version marker next to the tile (e.g. `.12`, `.18`). |
 | `maps/tilepack-versions.json` | `[{"<tile pack id>": <version>}, ...]` |
-| `maps/tiles_md5`, `maps/routing_md5` | Checksum lists used for integrity checks. |
+| `maps/tiles_md5` | Checksum list used for integrity checks. |
 | `maps/temp/z8x<x>y<y>.map` | Decompressed copy the device actually renders from. It is removed when a tile is replaced so the new tile is used; leftovers can be deleted. |
-| `maps/routing/<level>/<aaa>/<bbb>/<ccc>.gph.lzma` | Valhalla routing graph tiles (level 0 = highways, 1 = arterial roads, 2 = local roads). See [ROUTING.md](ROUTING.md). |
-| `maps/routing/routing-config.json` | Valhalla service configuration (loki / meili / thor). |
-| `maps/routing_md5` | `<md5>  <path>` per graph tile; the device's list of its routing files (about 3.3 MB, roughly 40,000 lines). |
 
 ## File formats
 
 - `*.map.lzma` is an LZMA-alone stream (header `5d 00 00 00 04` followed by an unknown-size marker `ff ff ff ff ff ff ff ff`, 64 MB dictionary). Decompressed it is a [Mapsforge binary map](https://github.com/mapsforge/mapsforge/blob/master/docs/Specification-Binary-Map-File.md); the header starts with `mapsforge binary OSM`. The firmware also references `mapsforge.org/renderTheme`.
-- `*.gph.lzma` is an LZMA-compressed Valhalla graph tile.
 - Tiles are about 0.3 kB (almost empty ocean) up to roughly 45 MB; a typical land tile is 2-15 MB.
 
 ### Tile maths
@@ -116,7 +112,7 @@ Each tile can differ per version. Example, NL tile 131/83:
 
 ### Tile pack list format
 
-`mappack-gzip.json` is an object with `version`, `created_date`, `size`, `routing_size`, `routing_elevation_size`, `enhanced_size` and `tile_packs`. Packs are nested (continent, country, region) through `sub_packs`. Each pack has `id`, `name`, `size`, `routing_size`, `routing_elevation_size`, `enhanced_size`, `hidden`, `allow_download_all` and `tile_sets`; a tile set has `zoom` (8), `tile_coordinates` (`[x, y]` pairs) and `routing_coordinates`. Version 23 holds 407 packs.
+`mappack-gzip.json` is an object with `version`, `created_date`, `size`, `enhanced_size` and `tile_packs`. Packs are nested (continent, country, region) through `sub_packs`. Each pack has `id`, `name`, `size`, `enhanced_size`, `hidden`, `allow_download_all` and `tile_sets`; a tile set has `zoom` (8), `tile_coordinates` (`[x, y]` pairs). Version 23 holds 407 packs.
 
 The ids in the device's `tilepack-versions.json` resolve through this list. On the tested BOLT2: 127 = Europe > Belgium, 156 = Europe > Netherlands, 166 = Europe > Spain, 251 = United States > Pennsylvania, and 372-384 = the Canadian provinces and territories (Alberta to Yukon).
 
@@ -183,7 +179,7 @@ Notes from that work:
 
 ## What Wahoo Desktop does and does not do
 
-- **Does:** read `maps/` over USB (MTP); list installed tiles with their coverage, sizes, dates and versions; show the Valhalla routing graph tile counts and coverage from `maps/routing_md5` (Routing tab, `wahoo_cli routing`); resolve pack ids to names; check the public CDN for newer map versions per pack (Maps tab, `wahoo_cli map-updates`) and compare a single tile (`--tile x/y`); show the pack tree with installed packs marked and download a pack's tiles to `%LOCALAPPDATA%\WahooDesktop\maps\<version>\tiles\8\<x>\<y>.map.lzma` (Maps tab, `wahoo_cli map-packs`, `wahoo_cli map-download <pack>`).
+- **Does:** read `maps/` over USB (MTP); list installed tiles with their coverage, sizes, dates and versions; resolve pack ids to names; check the public CDN for newer map versions per pack (Maps tab, `wahoo_cli map-updates`) and compare a single tile (`--tile x/y`); show the pack tree with installed packs marked and download a pack's tiles to `%LOCALAPPDATA%\WahooDesktop\maps\<version>\tiles\8\<x>\<y>.map.lzma` (Maps tab, `wahoo_cli map-packs`, `wahoo_cli map-download <pack>`).
 - **Does not (yet):** write downloaded tiles to the device or build maps from OpenStreetMap.
 - **Possible future work:** download a newer tile from the CDN and write it to `maps/tiles/8/<x>/<y>.map.lzma` over USB/MTP, following the install procedure above (keep the original and update the version marker). This is untested with Wahoo Desktop; try it only with a backup of the original tile, and expect that the device may need a restart to pick up changes.
 
