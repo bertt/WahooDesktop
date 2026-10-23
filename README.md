@@ -154,6 +154,7 @@ Full details (layout, formats, tile maths, versions, building your own maps): **
 - Reclaiming space from `maps/temp`
 - Ride selector for the sensor charts, decoding of manufacturer FIT messages
 - Install a newer tile from the CDN over USB (download, keep the original, update the version marker)
+- Build up-to-date Valhalla routing tiles (e.g. from fresh OpenStreetMap data) and put them on the device, so current detours and road works show up in routing on the Wahoo (see [docs/ROUTING.md](docs/ROUTING.md))
 
 ## Building the installer and releases
 
