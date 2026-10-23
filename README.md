@@ -48,7 +48,7 @@ Notes: map, routing and storage details depend on the firmware's folder layout (
 - Battery history, drain and estimated runtime
 - Storage breakdown by folder
 - Maps: installed tiles on a map (colour by size/version/marker), versions, leftover temp files, warnings
-- Routing: own tab (and `wahoo_cli routing`) with the Valhalla graph tiles: count per level and a coverage map built from `maps/routing_md5` (cached by `sync`, so run a sync once after updating), the service config and the routing size of installed packs
+- Routing: own tab (and `wahoo_cli routing`) with the Valhalla graph tiles: count per level and a coverage map built from `maps/routing_md5` (cached by `sync`, so run a sync once after updating), the service config and the routing size of installed packs (see [docs/ROUTING.md](docs/ROUTING.md))
 - Sensors (from FIT files), saved routes (click to view on a map; drag and drop a .gpx/.fit to add one to the device), planned workouts, derived alerts
 - History: sortable/filterable activity list; details with map, charts, laps, events and raw FIT message debug
 - Statistics: totals, per month/year/weekday/hour, personal records
@@ -87,7 +87,7 @@ Summary (reverse-read from the device, not official documentation):
 - Wahoo's map CDN (`https://cdn.wahooligan.com/wahoo-maps`) cannot be listed (403), but its objects are public: `<version>/mappack-gzip.json.gz` (tile pack list) and `<version>/tiles/8/<x>/<y>.map.lzma` (tiles). This makes a map update check possible.
 - Community tools show that tiles can also be built from OpenStreetMap and copied to the device over USB.
 
-Full details (layout, formats, tile maths, versions, building your own maps): **[docs/MAPS.md](docs/MAPS.md)**.
+Full details (layout, formats, tile maths, versions, building your own maps): **[docs/MAPS.md](docs/MAPS.md)**. Valhalla routing data: **[docs/ROUTING.md](docs/ROUTING.md)**.
 
 ## Limitations
 

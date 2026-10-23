@@ -14,7 +14,7 @@ Wahoo Desktop: a local Rust app (Windows only, v0.1) that reads a Wahoo ELEMNT (
   - `firmware.rs`, `mapupdates.rs`: update checks against Wahoo's public manifest/CDN.
   - `app.rs`, `views.rs`, `server.rs`: app state, view models, and the internal axum server that serves the UI.
 - `static/` (`index.html`, `app.js`, `style.css`): frontend UI.
-- `docs/`: GitHub Pages site (`index.html`), `CLI.md`, `MAPS.md` (reverse-engineered map format).
+- `docs/`: GitHub Pages site (`index.html`), `CLI.md`, `MAPS.md` (reverse-engineered map format), `ROUTING.md` (Valhalla routing data; keep in sync with the Routing tab and `wahoo_cli routing`).
 - `installer/wahoo-desktop.iss`: Inno Setup installer. `.github/workflows/release.yml`: builds and attaches the installer on release.
 - `assets/`: icon sources (`icon.svg`; `make-icon.cjs` regenerates `icon.ico`/`icon.png`). `tools/geojson.js`: helper script.
 
@@ -33,7 +33,7 @@ Installer: `ISCC /DAppVersion=0.1.0 installer\wahoo-desktop.iss` (output in `dis
 - On device: `maps/tiles/8/<x>/<y>.map.lzma` (zoom-8 slippy tiles, always z=8), a zero-byte version marker `<y>.map.lzma.<version>` next to each, `maps/tilepack-versions.json` (`[{"<pack id>": <version>}]`, versions are per tile pack, not per tile), `maps/tiles_md5`, `maps/routing_md5`, `maps/temp/z8x<x>y<y>.map` (decompressed render copy; leftovers can be deleted), `maps/routing/<level>/.../*.gph.lzma` (Valhalla graph) and `maps/routing/routing-config.json`.
 - Formats: `.map.lzma` is an LZMA-alone stream (header `5d 00 00 00 04`, unknown-size marker, 64 MB dictionary) holding a Mapsforge binary map; tiles range from ~0.3 kB (ocean) to ~45 MB, typically 2-15 MB.
 - Tile maths: `n=256; x=floor((lon+180)/360*n); y=floor((1-asinh(tan(lat_rad))/pi)/2*n)`.
-- Routing: `maps/routing/<level>/<aaa>/<bbb>/<ccc>.gph.lzma` Valhalla graph tiles are not walked by the sync (~40,000 files); `maps/routing_md5` (`<md5>  <path>` per line) lists them and is cached and parsed for the Routing tab. Tile id = digits of `<aaa><bbb><ccc>`; level 2 (0.25° tiles, 1440 columns): `row=id/1440`, `col=id%1440`, `lat=-90+row*0.25`, `lon=-180+col*0.25`. The pack list gives `routing_size`/`routing_coordinates` per pack.
+- Routing: `maps/routing/<level>/<aaa>/<bbb>/<ccc>.gph.lzma` Valhalla graph tiles are not walked by the sync (~40,000 files); `maps/routing_md5` (`<md5>  <path>` per line) lists them and is cached and parsed for the Routing tab. Tile id = digits of `<aaa><bbb><ccc>`; level 2 (0.25° tiles, 1440 columns): `row=id/1440`, `col=id%1440`, `lat=-90+row*0.25`, `lon=-180+col*0.25`. The pack list gives `routing_size`/`routing_coordinates` per pack. Details: `docs/ROUTING.md`.
 - CDN `https://cdn.wahooligan.com/wahoo-maps` is not listable, but objects are public: `<version>/mappack-gzip.json.gz` (pack list) and `<version>/tiles/8/<x>/<y>.map.lzma`. Device tiles are byte-identical to the CDN tiles of the same version.
 - Map versions are whole-world releases (known: 1-9, 12, 17, 18, 20, 21, 23); treat numbers, not `created_date`, as ordering. Newest is found by probing the next 25 versions after the newest installed one; keep CDN requests to a few dozen at most.
 - Pack list JSON: `version`, `created_date`, `tile_packs` nested via `sub_packs`; each pack has `id`, `name`, `tile_sets` (`zoom`, `tile_coordinates` `[x, y]`). Pack ids in `tilepack-versions.json` resolve through it.

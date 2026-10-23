@@ -174,6 +174,8 @@ Besides the Mapsforge tiles used for drawing, the ELEMNT carries routing data fo
 
 Wahoo Desktop shows this in the **Routing** tab and with `wahoo_cli routing` (see [docs/CLI.md](CLI.md)). It only reads routing data; it does not download or write graph tiles.
 
+Full routing details: **[ROUTING.md](ROUTING.md)**.
+
 ## Building your own maps (community approach)
 
 Wahoo's servers are not required. The tile format is plain Mapsforge, so tiles can be generated from OpenStreetMap data and copied to the device. The [Sommet `wahoo_maps.py`](https://github.com/skinnie/sommet/blob/main/tools/wahoo_maps.py) tool documents a working pipeline (observed on an ELEMNT running BoltApp 1.77.10.1, over `adb`):
