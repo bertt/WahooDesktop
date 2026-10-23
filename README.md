@@ -79,6 +79,36 @@ Global flags: `--json`, `--device <name>`.
 
 Full documentation with all commands and examples: **[docs/CLI.md](docs/CLI.md)**.
 
+## Skills
+
+The [`skills/`](skills) folder contains agent skills: Markdown files with instructions that let an AI coding agent (for example GitHub Copilot CLI or Claude Code) drive `wahoo_cli` safely. Each file has a `name` and `description` in its front matter.
+
+| Skill | File | Purpose |
+|-------|------|---------|
+| `wahoo-device-diagnose` | [device-diagnose.md](skills/device-diagnose.md) | Diagnose connection, cache and sync problems |
+| `wahoo-ride-analysis` | [ride-analysis.md](skills/ride-analysis.md) | Summarize and compare rides and statistics |
+| `wahoo-route-upload` | [route-upload.md](skills/route-upload.md) | Add a GPX/FIT route to the device (asks for confirmation) |
+| `wahoo-update-check` | [update-check.md](skills/update-check.md) | Check firmware and map updates (needs internet) |
+
+### How to use
+
+1. Build or install `wahoo_cli` and make sure it is on your `PATH` (or run it via `cargo run --release --bin wahoo_cli --`).
+2. Install a skill by copying its file into your agent's skills folder, for example `~/.copilot/skills/<skill-name>/SKILL.md` or `.claude/skills/<skill-name>/SKILL.md` (use the skill's `name` as folder name and `SKILL.md` as file name).
+3. Connect the ELEMNT with a data cable, switch it on, and ask your agent a question.
+
+The skills follow the same rules as the CLI: always `--json`, sync only when fresh data is needed, never sync while the desktop app is syncing, confirm before `add-route` or large downloads, and never share serial numbers or `debug` output publicly.
+
+### Example prompts
+
+- "Check why my Wahoo is not visible."
+- "Run a diagnosis and give only the necessary next step."
+- "Summarize my last 5 rides."
+- "Compare my longest ride this month with the previous one."
+- "Put this GPX route on my Wahoo."
+- "Is my route on the device yet?"
+- "Is there new firmware for my Wahoo?"
+- "Are my maps up to date?"
+
 ## Map data: source and format
 
 Summary (reverse-read from the device, not official documentation):
