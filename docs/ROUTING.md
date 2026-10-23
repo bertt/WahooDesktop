@@ -83,7 +83,19 @@ Other header words (transit and restriction counts) are not decoded.
 
 Observed sizes: tile 818659 has 43,524 nodes and 109,870 edges (about 2.5 edges per node), 818660 has 117,128 and 325,463, 818661 has 69,518 and 198,560. Tile 818660 covers the city of Utrecht and is the largest. The edge section is about 56-57% of each tile.
 
-Not verified: the exact record layout of the other fixed sections and edge info, and the decoding of the directed edge bit fields. Valhalla's [`directededge.h`](https://github.com/valhalla/valhalla/blob/3.1.4/valhalla/baldr/directededge.h), [`nodeinfo.h`](https://github.com/valhalla/valhalla/blob/3.1.4/valhalla/baldr/nodeinfo.h) and [`graphtile.h`](https://github.com/valhalla/valhalla/blob/3.1.4/valhalla/baldr/graphtile.h) are the reference. The tiles can in principle be read with Valhalla's own tools after decompressing; Wahoo's build may differ in details.
+Not verified: the exact record layout of the other fixed sections, and the decoding of the other directed edge bit fields.
+
+**Edge info (verified by `routing-export`).** A directed edge's second 8-byte word holds (low 25 bits) the offset into the edge-info section. Both directions of a road segment point to the same edge info, so a tile has about half as many segments as directed edges (tile 818660: 325,463 directed edges, 163,036 segments). Each edge-info record is:
+
+| Bytes | Content |
+|---|---|
+| 4 | OSM way id (low 32 bits) |
+| 4 | mean elevation (12 bits, 2 m steps, `value * 2 - 500` metres), bike network (4), speed limit (8), way id bits 32-39 (8) |
+| 4 | name count (4 bits), encoded shape size (16), way id bits 40-47 (8), extra way id bytes (2) |
+| 4 x names | name info: offset into the text list (24 bits), flags (route number, tagged) |
+| shape size | the shape: zig-zag varints (7 bits per byte, high bit = continues), `lat, lon` deltas in 1e-6 degree, starting from 0,0 |
+
+Street names are NUL-terminated strings at `text-list offset + name offset`. The decoded shapes start at the node coordinates and stay within the tile, and the mean elevations fit the Utrecht area (-10 to +34 m), which confirms the layout and the elevation encoding. The tiles contain all modes (cars, bicycles and pedestrians): for example 106,408 of 163,036 segments in tile 818660 are `service_other` (cycleways, footways, service roads). `routing-export` writes these as GeoJSON lines with `road_class`, `use`, `surface`, `speed_kph`, `length_m`, `mean_elevation_m`, slopes and the OSM way id. Valhalla's [`directededge.h`](https://github.com/valhalla/valhalla/blob/3.1.4/valhalla/baldr/directededge.h), [`nodeinfo.h`](https://github.com/valhalla/valhalla/blob/3.1.4/valhalla/baldr/nodeinfo.h) and [`graphtile.h`](https://github.com/valhalla/valhalla/blob/3.1.4/valhalla/baldr/graphtile.h) are the reference. Wahoo's build may differ in details.
 
 ## Routing data per map pack (CDN)
 
@@ -106,7 +118,7 @@ Elevation (terrain) data is a separate, optional layer in Wahoo's pack list. Ver
 ## What Wahoo Desktop does
 
 - **Routing tab:** tile count per level, coverage map (from `routing_md5`), service config, leftovers, and a table of installed packs with version, routing tiles and routing size.
-- **CLI:** `wahoo_cli routing` (cache only, see [CLI.md](CLI.md)).
+- **CLI:** `wahoo_cli routing` (cache only, see [CLI.md](CLI.md)) and `wahoo_cli routing-export <tile>`, which converts a graph tile to GeoJSON for QGIS or geojson.io (see [Graph tile format](#graph-tile-format)).
 - **Sync:** copies `maps/routing_md5` to the cache. A sync only copies it when its size changed, so run a sync once after updating the app. It also fetches three sample level-2 graph tiles around Utrecht (`2/000/818/659`-`661`) by path, when present on the device.
 - It only **reads** routing data. It does not download or write graph tiles.
 
@@ -114,6 +126,6 @@ Elevation (terrain) data is a separate, optional layer in Wahoo's pack list. Ver
 
 - **Graph tiles are not walked.** Listing the roughly 40,000 graph files over MTP is too slow, so the sync stops at `maps/routing/<level>/<aaa>` (depth 3). Tile counts and coverage come from `routing_md5`. `WAHOO_PROBE=maps/routing` makes the sync walk deeper, slowly.
 - Without a cached `routing_md5` the Routing tab shows a warning to run a sync.
-- Graph tile contents are only described, not parsed by the app (see [Graph tile format](#graph-tile-format)).
+- Graph tile contents are only partly decoded: `routing-export` reads the header, directed edges and edge info, not turn restrictions, signs, admin areas, lane connectivity or the node graph (see [Graph tile format](#graph-tile-format)).
 
 Code: `views::routing` / `views::routing_listing` in `src/views.rs`, pack routing data in `src/mapupdates.rs` (`routing_bytes`, `routing_tiles`), the Routing view in `static/app.js`.

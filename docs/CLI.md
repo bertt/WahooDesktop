@@ -49,6 +49,7 @@ Exit code is `0` on success and `1` on error (message on stderr).
 | `map-packs [--all]` | no | Lists the map pack tree (continent > country > region) of the newest map version, marking the packs installed on the device. Without `--all` only installed packs and their parents are shown (needs internet) |
 | `map-download <pack> [--version <n>]` | no | Downloads all tiles of one pack from Wahoo's CDN to `%LOCALAPPDATA%\WahooDesktop\maps\<version>\tiles\8\<x>\<y>.map.lzma`. `<pack>` is an id, a name (`Netherlands`) or a full name (`"Europe > Netherlands"`). Existing tiles of the same size are skipped. This only downloads to your computer; nothing is written to the device yet (needs internet) |
 | `routing` | no | Valhalla routing data: graph tile count per level and coverage (from the device's `maps/routing_md5` list, cached by `sync`), service config and leftovers |
+| `routing-export <tile> [-o <file>]` | no | Converts one Valhalla graph tile to GeoJSON (one line per road segment with name, road class, use, surface, speed, length, elevation, OSM way id). `<tile>` is a `.gph.lzma`/`.gph` file or a tile id such as `818660` from the cache (`sync` fetches three sample tiles around Utrecht: 818659-818661). Default output: `%LOCALAPPDATA%\WahooDesktop\export\<id>.geojson`. Open it in QGIS or geojson.io; see [ROUTING.md](ROUTING.md#graph-tile-format) |
 | `sensors` | no | Sensor readings (temperature, altitude, ...) and sensors seen by the device |
 | `routes` | no | Saved routes |
 | `plans` | no | Planned workouts |
@@ -71,6 +72,7 @@ wahoo_cli add-route my-ride.gpx
 wahoo_cli ls maps/tiles/8/
 wahoo_cli map-packs
 wahoo_cli map-download Netherlands          # use case: update the Netherlands pack (about 170 MB)
+wahoo_cli routing-export 818660             # Utrecht graph tile to GeoJSON (about 70 MB)
 wahoo_cli pull system_update_elemnt/18001/BoltApp BoltApp.apk
 ```
 

@@ -88,6 +88,7 @@ Connect the ELEMNT with a data cable, switch it on and click **Sync device**. Fi
 wahoo_cli status | sync | info | battery | storage | maps | sensors
 wahoo_cli routes | add-route <file.gpx|file.fit> | plans | alerts | history -n 20 | activity <id> | stats | debug
 wahoo_cli map-updates [--tile x/y] | map-packs [--all] | map-download <pack|id> [--version n]
+wahoo_cli routing | routing-export <tile id|file> [-o out.geojson]
 wahoo_cli pull <device path> <local file>
 wahoo_cli ls [prefix]
 ```

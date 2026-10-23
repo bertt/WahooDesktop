@@ -55,6 +55,13 @@ enum Cmd {
     },
     /// Valhalla routing data on the device: graph tiles per level, checksums and service config
     Routing,
+    /// Export a Valhalla graph tile (.gph.lzma, .gph or a tile id such as 818660 from the cache) to GeoJSON
+    RoutingExport {
+        tile: String,
+        /// Output file (default: %LOCALAPPDATA%\WahooDesktop\export\<tile id>.geojson)
+        #[arg(short, long)]
+        out: Option<std::path::PathBuf>,
+    },
     /// Sensors seen by the device
     Sensors,
     /// Saved routes
@@ -101,6 +108,24 @@ fn f(v: &Value, k: &str) -> f64 {
 
 fn print_json(v: &Value) {
     println!("{}", serde_json::to_string_pretty(v).unwrap());
+}
+
+/// A tile argument is a file path, or a level-2 tile id (e.g. 818660) looked up in the device caches.
+fn resolve_tile(arg: &str) -> Result<std::path::PathBuf, String> {
+    let p = std::path::PathBuf::from(arg);
+    if p.is_file() {
+        return Ok(p);
+    }
+    let id: u32 = arg.parse().map_err(|_| format!("'{arg}' is neither a file nor a tile id"))?;
+    let digits = format!("{id:09}");
+    let rel = std::path::Path::new("files").join("maps").join("routing").join("2").join(&digits[0..3]).join(&digits[3..6]).join(format!("{}.gph.lzma", &digits[6..9]));
+    for dev in std::fs::read_dir(wahoo_desktop::app::cache_dir()).map_err(|e| e.to_string())?.flatten() {
+        let c = dev.path().join(&rel);
+        if c.is_file() {
+            return Ok(c);
+        }
+    }
+    Err(format!("tile {id} is not in the cache (the sync only fetches a few sample tiles around Utrecht; use `pull` for others)"))
 }
 
 fn pick(app: &Arc<App>, key: &Option<String>) -> Result<Arc<wahoo_desktop::app::DeviceData>, String> {
@@ -163,6 +188,23 @@ fn run(cli: Cli) -> Result<(), String> {
             match info {
                 Some(c) => println!("Added {saved}: {} points, {:.1} km", c.points, c.distance_m / 1000.0),
                 None => println!("Added {saved}"),
+            }
+            return Ok(());
+        }
+        Cmd::RoutingExport { tile, out } => {
+            let path = resolve_tile(tile)?;
+            let raw = std::fs::read(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+            let ex = wahoo_desktop::valhalla::export_geojson(&wahoo_desktop::valhalla::decompress(&raw)?)?;
+            let out = out.clone().unwrap_or_else(|| wahoo_desktop::app::cache_dir().with_file_name("export").join(format!("{}.geojson", ex.tile_id)));
+            if let Some(p) = out.parent() {
+                std::fs::create_dir_all(p).map_err(|e| e.to_string())?;
+            }
+            std::fs::write(&out, &ex.geojson).map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            if cli.json {
+                print_json(&json!({"tile_id": ex.tile_id, "level": ex.level, "nodes": ex.nodes, "directed_edges": ex.directed_edges, "segments": ex.segments, "file": out.display().to_string(), "bytes": ex.geojson.len()}));
+            } else {
+                println!("Tile {} (level {}): {} nodes, {} directed edges, {} road segments", ex.tile_id, ex.level, ex.nodes, ex.directed_edges, ex.segments);
+                println!("Wrote {} ({})", out.display(), bytes(ex.geojson.len() as u64));
             }
             return Ok(());
         }
