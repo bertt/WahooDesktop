@@ -16,7 +16,7 @@ Welcome, and thanks for reading! Feedback is very welcome: open an [issue](../..
 
 Good starters:
 
-- Test on another ELEMNT model (BOLT v1, ROAM, ROAM 2, ACE) and share the **Technical** tab output (without serial numbers)
+- Test on another ELEMNT model (BOLT v1, ROAM, ROAM 2, ROAM 3, BOLT 3, ACE) and share the **Technical** tab output (without serial numbers)
 - Pick an item from [Future ideas and extensions](#future-ideas-and-extensions), such as GPX/FIT export of rides
 - Improve the docs (`docs/CLI.md`, `docs/MAPS.md`, `docs/ROUTING.md`) or add screenshots
 - Add tests for FIT parsing (`src/fit.rs`) or route handling (`src/course.rs`)
@@ -40,6 +40,8 @@ The app reads the device as a standard USB MTP storage device and parses its FIT
 | ELEMNT BOLT2 (BOLT F9F1) | 180.01 | Tested (all features) |
 | ELEMNT BOLT (v1) | - | Untested, expected to work |
 | ELEMNT ROAM / ROAM 2 | - | Untested, expected to work |
+| ELEMNT ROAM 3 | - | Untested; newer platform (2025), folder layout may differ |
+| ELEMNT BOLT 3 | - | Untested; newer platform (2025), folder layout may differ |
 | ELEMNT ACE | - | Untested, expected to work |
 | ELEMNT (original) | - | Untested; older firmware, folder layout may differ |
 
