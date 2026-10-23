@@ -31,7 +31,21 @@ Valhalla hierarchy levels: 0 = highways (4° tiles), 1 = arterial roads (1° til
 
 ## Tile ids and positions
 
-`<aaa><bbb><ccc>` are the digits of the Valhalla tile id, grouped by three (`2/000/729/042` is id 729042). On level 2 the grid has 1440 columns:
+Valhalla uses its own regular latitude/longitude grid (not Web Mercator or XYZ), with three levels:
+
+| Level | Name | Tile size | Columns x rows | North-south | East-west at the equator | East-west at 52 N (Utrecht) |
+|---|---|---|---|---|---|---|
+| 0 | highway | 4° | 90 x 45 | about 445 km | about 445 km | about 274 km |
+| 1 | arterial | 1° | 360 x 180 | about 111 km | about 111 km | about 68 km |
+| 2 | local | 0.25° | 1440 x 720 | about 28 km | about 28 km | about 17 km |
+
+The origin is the south-west corner (-180°, -90°). Tiles are numbered row by row, west to east, then south to north, so `id = row * columns + col` with `row = floor((lat + 90) / size)` and `col = floor((lon + 180) / size)`. Tiles are fixed in degrees, so they get narrower towards the poles. The level 0 and 1 sizes come from Valhalla's tile hierarchy; only level 2 is present on the BOLT2.
+
+Example: Utrecht (52.09 N, 5.12 E) gives `row = 568`, `col = 740`, `id = 568 * 1440 + 740 = 818660`, which is tile `2/000/818/660`.
+
+A full graph id (64 bits) is `level` (3 bits), `tile id` (22 bits) and the node or edge index within the tile (21 bits). The tile's own graph id is in the first 8 bytes of its header, and the header also holds the south-west corner (see [Graph tile format](#graph-tile-format)); the north-east corner is that plus the tile size.
+
+`<aaa><bbb><ccc>` in the path are the digits of the tile id, grouped by three (`2/000/729/042` is id 729042). On level 2 the grid has 1440 columns:
 
 ```
 row = id / 1440      lat = -90  + row * 0.25
