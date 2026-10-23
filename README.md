@@ -10,6 +10,19 @@ Wahoo Desktop is a fast, local Rust app that reads a Wahoo ELEMNT (tested with a
 
 **Platform:** Windows only for now (native WPD COM API). macOS/Linux are planned. This is version 0.1.
 
+## Welcome
+
+Welcome, and thanks for reading! Feedback is very welcome: open an [issue](../../issues) with questions, bug reports or ideas, and send pull requests if you want to contribute.
+
+Good starters:
+
+- Test on another ELEMNT model (BOLT v1, ROAM, ROAM 2, ACE) and share the **Technical** tab output (without serial numbers)
+- Pick an item from [Future ideas and extensions](#future-ideas-and-extensions), such as GPX/FIT export of rides
+- Improve the docs (`docs/CLI.md`, `docs/MAPS.md`, `docs/ROUTING.md`) or add screenshots
+- Add tests for FIT parsing (`src/fit.rs`) or route handling (`src/course.rs`)
+- Start on macOS/Linux support for the device backend in `mtp/`
+- Add another agent skill in [`skills/`](skills)
+
 ### Screenshots
 
 | Maps | Sensors | Statistics |
