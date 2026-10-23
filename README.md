@@ -22,6 +22,8 @@ Good starters:
 - Add tests for FIT parsing (`src/fit.rs`) or route handling (`src/course.rs`)
 - Start on macOS/Linux support for the device backend in `mtp/`
 - Add another agent skill in [`skills/`](skills)
+- Upload new maps (install a downloaded tile over USB) and routes (more formats, batch upload) to the device
+- Support custom maps, for example tiles built from OpenStreetMap (see [docs/MAPS.md](docs/MAPS.md))
 
 ### Screenshots
 
