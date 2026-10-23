@@ -87,7 +87,7 @@ Connect the ELEMNT with a data cable, switch it on and click **Sync device**. Fi
 ```
 wahoo_cli status | sync | info | battery | storage | maps | sensors
 wahoo_cli routes | add-route <file.gpx|file.fit> | plans | alerts | history -n 20 | activity <id> | stats | debug
-wahoo_cli map-updates [--tile x/y] | map-packs [--all] | map-download <pack|id> [--version n]
+wahoo_cli map-updates [--tile x/y] | map-packs [--all] | map-download <pack|id> [--version n] | install-tile <x/y> --version n [--apply]
 wahoo_cli routing | routing-export <tile id|file> [-o out.geojson]
 wahoo_cli pull <device path> <local file>
 wahoo_cli ls [prefix]
@@ -139,7 +139,7 @@ Full details (layout, formats, tile maths, versions, building your own maps): **
 
 ## Limitations
 
-- **Maps are not written to the device.** Tiles can be downloaded from the public CDN to the local `maps` folder (Maps tab or `wahoo_cli map-download`), but installing a tile over USB is not implemented (see [docs/MAPS.md](docs/MAPS.md)).
+- **Maps are only written per tile (experimental).** Tiles can be downloaded from the public CDN (Maps tab or `wahoo_cli map-download`) and installed one at a time with `wahoo_cli install-tile <x/y> --version <n> --apply` (dry run without `--apply`; see [docs/MAPS.md](docs/MAPS.md)). There is no GUI for installing yet.
 - Alerts are derived (low storage/battery, staged firmware, crash files, leftover maps); the device does not store alert definitions in readable form.
 - Live battery/sensor data over Bluetooth is not implemented.
 

@@ -246,30 +246,88 @@ pub fn upload(pnp_id: &str, folder: &str, file_name: &str, data: &[u8]) -> Resul
         n += 1;
         name = if ext.is_empty() { format!("{stem}-{n}") } else { format!("{stem}-{n}.{ext}") };
     }
-    unsafe {
-        let v: IPortableDeviceValues = CoCreateInstance(&PortableDeviceValues, None, CLSCTX_INPROC_SERVER)?;
-        let (pw, nw) = (wide(&parent), wide(&name));
-        v.SetStringValue(&WPD_OBJECT_PARENT_ID, PCWSTR(pw.as_ptr()))?;
-        v.SetStringValue(&WPD_OBJECT_NAME, PCWSTR(nw.as_ptr()))?;
-        v.SetStringValue(&WPD_OBJECT_ORIGINAL_FILE_NAME, PCWSTR(nw.as_ptr()))?;
-        v.SetUnsignedLargeIntegerValue(&WPD_OBJECT_SIZE, data.len() as u64)?;
-        v.SetGuidValue(&WPD_OBJECT_CONTENT_TYPE, &WPD_CONTENT_TYPE_UNSPECIFIED)?;
-        v.SetGuidValue(&WPD_OBJECT_FORMAT, &WPD_OBJECT_FORMAT_UNSPECIFIED)?;
-        let mut stream: Option<IStream> = None;
-        let mut optimal = 0u32;
-        s.content.CreateObjectWithPropertiesAndData(&v, &mut stream, &mut optimal, std::ptr::null_mut())?;
-        let stream = stream.ok_or_else(|| Error::from_hresult(windows::core::HRESULT(-1)))?;
-        let chunk = optimal.max(65536) as usize;
-        for part in data.chunks(chunk) {
-            let mut written = 0u32;
-            let hr = stream.Write(part.as_ptr() as _, part.len() as u32, Some(&mut written));
-            if hr.is_err() {
-                return Err(Error::from_hresult(hr));
-            }
-        }
-        stream.Commit(STGC_DEFAULT)?;
-    }
+    s.create_object(&parent, &name, data)?;
     Ok(name)
+}
+
+impl Session {
+    fn create_object(&self, parent: &str, name: &str, data: &[u8]) -> Result<()> {
+        unsafe {
+            let v: IPortableDeviceValues = CoCreateInstance(&PortableDeviceValues, None, CLSCTX_INPROC_SERVER)?;
+            let (pw, nw) = (wide(parent), wide(name));
+            v.SetStringValue(&WPD_OBJECT_PARENT_ID, PCWSTR(pw.as_ptr()))?;
+            v.SetStringValue(&WPD_OBJECT_NAME, PCWSTR(nw.as_ptr()))?;
+            v.SetStringValue(&WPD_OBJECT_ORIGINAL_FILE_NAME, PCWSTR(nw.as_ptr()))?;
+            v.SetUnsignedLargeIntegerValue(&WPD_OBJECT_SIZE, data.len() as u64)?;
+            v.SetGuidValue(&WPD_OBJECT_CONTENT_TYPE, &WPD_CONTENT_TYPE_UNSPECIFIED)?;
+            v.SetGuidValue(&WPD_OBJECT_FORMAT, &WPD_OBJECT_FORMAT_UNSPECIFIED)?;
+            let mut stream: Option<IStream> = None;
+            let mut optimal = 0u32;
+            self.content.CreateObjectWithPropertiesAndData(&v, &mut stream, &mut optimal, std::ptr::null_mut())?;
+            let stream = stream.ok_or_else(|| Error::from_hresult(windows::core::HRESULT(-1)))?;
+            let chunk = optimal.max(65536) as usize;
+            for part in data.chunks(chunk) {
+                let mut written = 0u32;
+                let hr = stream.Write(part.as_ptr() as _, part.len() as u32, Some(&mut written));
+                if hr.is_err() {
+                    return Err(Error::from_hresult(hr));
+                }
+            }
+            stream.Commit(STGC_DEFAULT)?;
+        }
+        Ok(())
+    }
+
+    /// Object id of a device path, or None when a component does not exist.
+    fn resolve(&self, path: &str) -> Option<String> {
+        let mut cur = self.children("DEVICE").into_iter().next()?;
+        for part in path.split('/').filter(|p| !p.is_empty()) {
+            cur = self.child_names(&cur).into_iter().find(|(_, n)| n.eq_ignore_ascii_case(part)).map(|(id, _)| id)?;
+        }
+        Some(cur)
+    }
+
+    fn delete_object(&self, id: &str) -> Result<()> {
+        unsafe {
+            let c: IPortableDevicePropVariantCollection =
+                CoCreateInstance(&PortableDevicePropVariantCollection, None, CLSCTX_INPROC_SERVER)?;
+            c.Add(&windows::Win32::System::Com::StructuredStorage::PROPVARIANT::from(id))?;
+            let mut results: Option<IPortableDevicePropVariantCollection> = None;
+            self.content.Delete(PORTABLE_DEVICE_DELETE_NO_RECURSION.0 as u32, &c, &mut results)
+        }
+    }
+}
+
+/// Size of the file at `path`, or None when it does not exist.
+pub fn stat(pnp_id: &str, path: &str) -> Result<Option<u64>> {
+    let _g = ComGuard::new();
+    let s = Session::open(pnp_id)?;
+    Ok(s.resolve(path).and_then(|id| {
+        let v = s.values(&id, &[WPD_OBJECT_SIZE])?;
+        unsafe { v.GetUnsignedLargeIntegerValue(&WPD_OBJECT_SIZE).ok() }
+    }))
+}
+
+/// Deletes one file; returns false when it did not exist.
+pub fn delete(pnp_id: &str, path: &str) -> Result<bool> {
+    let _g = ComGuard::new();
+    let s = Session::open_with(pnp_id, 0xC000_0000)?;
+    match s.resolve(path) {
+        Some(id) => s.delete_object(&id).map(|_| true),
+        None => Ok(false),
+    }
+}
+
+/// Creates a new file at `path`; the parent folder must exist and the file must not.
+pub fn write_new(pnp_id: &str, path: &str, data: &[u8]) -> Result<()> {
+    let _g = ComGuard::new();
+    let s = Session::open_with(pnp_id, 0xC000_0000)?;
+    let (dir, name) = path.rsplit_once('/').ok_or_else(|| Error::from_hresult(windows::core::HRESULT(-2147024809)))?;
+    let parent = s.resolve(dir).ok_or_else(|| Error::from_hresult(windows::core::HRESULT(-2147024894)))?;
+    if s.child_names(&parent).iter().any(|(_, n)| n.eq_ignore_ascii_case(name)) {
+        return Err(Error::from_hresult(windows::core::HRESULT(-2147024713)));
+    }
+    s.create_object(&parent, name, data)
 }
 
 /// Level-2 Valhalla graph tiles (0.25 degree) around Utrecht: lat 52.0-52.25, lon 4.75-5.5 (ids 818659-818661).

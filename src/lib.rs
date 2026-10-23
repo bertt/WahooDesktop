@@ -7,4 +7,5 @@ pub mod main_window;
 pub mod course;
 pub mod firmware;
 pub mod mapupdates;
+pub mod tileinstall;
 pub mod valhalla;

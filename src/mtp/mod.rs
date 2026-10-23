@@ -144,6 +144,19 @@ pub fn upload(id: &str, folder: &str, file_name: &str, data: &[u8]) -> Result<St
     backend::upload(id, folder, file_name, data).map_err(|e| e.to_string())
 }
 
+pub fn stat(id: &str, path: &str) -> Result<Option<u64>, String> {
+    backend::stat(id, path).map_err(|e| e.to_string())
+}
+
+pub fn delete(id: &str, path: &str) -> Result<bool, String> {
+    backend::delete(id, path).map_err(|e| e.to_string())
+}
+
+/// Creates a new file; fails if it already exists or the parent folder is missing.
+pub fn write_new(id: &str, path: &str, data: &[u8]) -> Result<(), String> {
+    backend::write_new(id, path, data).map_err(|e| e.to_string())
+}
+
 pub fn sanitize(s: &str) -> String {
     s.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect()
 }

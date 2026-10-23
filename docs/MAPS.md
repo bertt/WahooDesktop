@@ -24,7 +24,7 @@ What is known about how an ELEMNT stores and receives maps. Most of this is reve
 
 ## File formats
 
-- `*.map.lzma` is an LZMA-alone stream (header `5d 00 00 00 04` followed by an unknown-size marker `ff ff ff ff ff ff ff ff`, 64 MB dictionary). Decompressed it is a [Mapsforge binary map](https://github.com/mapsforge/mapsforge/blob/master/docs/Specification-Binary-Map-File.md); the header starts with `mapsforge binary OSM`. The firmware also references `mapsforge.org/renderTheme`.
+- `*.map.lzma` is an LZMA-alone stream: props byte `5d`, a dictionary size field and an unknown-size marker `ff ff ff ff ff ff ff ff`. The dictionary field is `00 00 00 04` (64 MB) in v12 but `00 00 80 00` (8 MB) in v17, v18, v21 and v23, so validate on `5d` plus the marker, not the full header. Decompressed it is a [Mapsforge binary map](https://github.com/mapsforge/mapsforge/blob/master/docs/Specification-Binary-Map-File.md); the header starts with `mapsforge binary OSM`. The firmware also references `mapsforge.org/renderTheme`.
 - Tiles are about 0.3 kB (almost empty ocean) up to roughly 45 MB; a typical land tile is 2-15 MB.
 
 ### Tile maths
@@ -180,8 +180,8 @@ Notes from that work:
 ## What Wahoo Desktop does and does not do
 
 - **Does:** read `maps/` over USB (MTP); list installed tiles with their coverage, sizes, dates and versions; resolve pack ids to names; check the public CDN for newer map versions per pack (Maps tab, `wahoo_cli map-updates`) and compare a single tile (`--tile x/y`); show the pack tree with installed packs marked and download a pack's tiles to `%LOCALAPPDATA%\WahooDesktop\maps\<version>\tiles\8\<x>\<y>.map.lzma` (Maps tab, `wahoo_cli map-packs`, `wahoo_cli map-download <pack>`).
-- **Does not (yet):** write downloaded tiles to the device or build maps from OpenStreetMap.
-- **Possible future work:** download a newer tile from the CDN and write it to `maps/tiles/8/<x>/<y>.map.lzma` over USB/MTP, following the install procedure above (keep the original and update the version marker). This is untested with Wahoo Desktop; try it only with a backup of the original tile, and expect that the device may need a restart to pick up changes.
+- **Does not (yet):** build maps from OpenStreetMap, or install tiles from the GUI.
+- **Experimental:** `wahoo_cli install-tile <x/y> --version <n> [--apply]` replaces one device tile by a CDN tile (dry run by default; validate, delete, write, byte-for-byte read-back, delete `maps/temp` copy, keep the marker, automatic restore of the previous version on failure). Device tiles equal the CDN tile of the same version, so rolling back means installing the old version again; no local backup is needed. First test: tile 131/83, v18 to v21 (marker kept at 18). The device may need a restart to pick up changes; whether `tiles_md5` (dated 2021, not updated for v18) and `tilepack-versions.json` matter is still being verified.
 
 ## Sources
 

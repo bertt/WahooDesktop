@@ -53,6 +53,23 @@ enum Cmd {
         #[arg(long)]
         version: Option<u32>,
     },
+    /// Replace one device tile (x/y) by the same tile of a CDN map version; dry run unless `--apply`
+    InstallTile {
+        /// Tile as x/y, e.g. 131/83
+        tile: String,
+        /// Map version to install (e.g. 21; use the old version, e.g. 18, to roll back)
+        #[arg(long)]
+        version: u32,
+        /// Version marker to leave next to the tile (default: keep the existing marker)
+        #[arg(long)]
+        marker: Option<u32>,
+        /// Only set the marker (needs --marker); no tile data is transferred
+        #[arg(long, requires = "marker")]
+        marker_only: bool,
+        /// Actually write to the device (without it only a plan is printed)
+        #[arg(long)]
+        apply: bool,
+    },
     /// Valhalla routing data on the device: graph tiles per level, checksums and service config
     Routing,
     /// Export a Valhalla graph tile (.gph.lzma, .gph or a tile id such as 818660 from the cache) to GeoJSON
@@ -188,6 +205,30 @@ fn run(cli: Cli) -> Result<(), String> {
             match info {
                 Some(c) => println!("Added {saved}: {} points, {:.1} km", c.points, c.distance_m / 1000.0),
                 None => println!("Added {saved}"),
+            }
+            return Ok(());
+        }
+        Cmd::InstallTile { tile, version, marker, marker_only, apply } => {
+            let (x, y) = tile.split_once('/').and_then(|(x, y)| Some((x.parse().ok()?, y.parse().ok()?))).ok_or("tile must be x/y, e.g. 131/83")?;
+            if *marker_only {
+                let r = wahoo_desktop::tileinstall::set_marker(x, y, marker.unwrap_or(*version), *apply)?;
+                if cli.json {
+                    print_json(&r);
+                } else {
+                    println!("Tile {}: markers {} -> .{}{}", r["tile"], r["device_markers"], r["target_marker"], if r["applied"] == true { " (done)" } else { " (dry run, add --apply)" });
+                }
+                return Ok(());
+            }
+            let r = wahoo_desktop::tileinstall::install(x, y, *version, *marker, *apply)?;
+            if cli.json {
+                print_json(&r);
+            } else {
+                println!("Tile {}: device {} bytes, markers {}, v{} on CDN {} bytes", r["tile"], r["device_bytes"], r["device_markers"], r["version"], r["cdn_bytes"]);
+                if r["applied"] == true {
+                    println!("Installed and verified byte for byte; marker .{} set; temp copy deleted: {}", r["target_marker"], r["temp_copy_deleted"]);
+                } else {
+                    println!("Dry run: nothing written (temp copy: {}). Add --apply to install; restart the device afterwards.", r["temp_copy_bytes"]);
+                }
             }
             return Ok(());
         }

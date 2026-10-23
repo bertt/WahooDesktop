@@ -285,7 +285,7 @@ pub fn start_download(pack: &str, version: Option<u32>, tilepacks: &Value) -> Re
     Ok(())
 }
 
-fn download_agent() -> ureq::Agent {
+pub(crate) fn download_agent() -> ureq::Agent {
     ureq::Agent::config_builder().timeout_connect(Some(Duration::from_secs(10))).timeout_global(Some(Duration::from_secs(900))).http_status_as_error(false).build().into()
 }
 
