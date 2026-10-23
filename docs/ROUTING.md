@@ -33,11 +33,11 @@ Valhalla hierarchy levels: 0 = highways (4° tiles), 1 = arterial roads (1° til
 
 Valhalla uses its own regular latitude/longitude grid (not Web Mercator or XYZ), with three levels:
 
-| Level | Name | Tile size | Columns x rows | North-south | East-west at the equator | East-west at 52 N (Utrecht) |
-|---|---|---|---|---|---|---|
-| 0 | highway | 4° | 90 x 45 | about 445 km | about 445 km | about 274 km |
-| 1 | arterial | 1° | 360 x 180 | about 111 km | about 111 km | about 68 km |
-| 2 | local | 0.25° | 1440 x 720 | about 28 km | about 28 km | about 17 km |
+| Level | Name | Tile size | Columns x rows | North-south | East-west at 52 N (Utrecht) |
+|---|---|---|---|---|---|
+| 0 | highway | 4° | 90 x 45 | about 445 km | about 274 km |
+| 1 | arterial | 1° | 360 x 180 | about 111 km | about 68 km |
+| 2 | local | 0.25° | 1440 x 720 | about 28 km | about 17 km |
 
 The origin is the south-west corner (-180°, -90°). Tiles are numbered row by row, west to east, then south to north, so `id = row * columns + col` with `row = floor((lat + 90) / size)` and `col = floor((lon + 180) / size)`. Tiles are fixed in degrees, so they get narrower towards the poles. The level 0 and 1 sizes come from Valhalla's tile hierarchy; only level 2 is present on the BOLT2.
 
