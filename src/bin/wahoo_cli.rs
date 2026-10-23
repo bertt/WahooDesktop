@@ -262,7 +262,7 @@ fn run(cli: Cli) -> Result<(), String> {
         Cmd::Maps => views::maps(&d),
         Cmd::Routing => views::routing(&d),
         Cmd::MapUpdates { tile } => {
-            let r = wahoo_desktop::mapupdates::check(&d.tilepacks);
+            let r = wahoo_desktop::mapupdates::check(&d.tilepacks, &wahoo_desktop::mapupdates::tile_markers(&d.manifest));
             let Some(t) = tile else {
                 if cli.json {
                     print_json(&r);
@@ -293,7 +293,7 @@ fn run(cli: Cli) -> Result<(), String> {
             return Ok(());
         }
         Cmd::MapPacks { all } => {
-            let r = wahoo_desktop::mapupdates::packs(&d.tilepacks);
+            let r = wahoo_desktop::mapupdates::packs(&d.tilepacks, &wahoo_desktop::mapupdates::tile_markers(&d.manifest));
             if cli.json {
                 print_json(&r);
             } else if r["status"] != "ok" {

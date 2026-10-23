@@ -65,6 +65,36 @@ fn installed_packs(tilepacks: &Value) -> BTreeMap<u64, u32> {
     installed
 }
 
+/// Per-tile map versions from the marker files `maps/tiles/8/<x>/<y>.map.lzma.<version>`.
+pub fn tile_markers(manifest: &crate::mtp::Manifest) -> BTreeMap<(u32, u32), u32> {
+    let mut out = BTreeMap::new();
+    for e in manifest.entries.iter().filter(|e| !e.dir) {
+        let Some(rest) = e.path.strip_prefix("maps/tiles/8/") else { continue };
+        let parts: Vec<&str> = rest.split('/').collect();
+        if let [x, file] = parts.as_slice() {
+            if let Some((y, ver)) = file.split_once(".map.lzma.") {
+                if let (Ok(x), Ok(y), Ok(v)) = (x.parse(), y.parse(), ver.parse()) {
+                    out.insert((x, y), v);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// `tilepack-versions.json` is not updated by `install-tile`, so the installed version of a pack is the oldest marker
+/// of its tiles when every tile has one; otherwise the value from the file stays.
+fn overlay_markers(installed: &mut BTreeMap<u64, u32>, list: &Value, markers: &BTreeMap<(u32, u32), u32>) {
+    for (id, ver) in installed.iter_mut() {
+        let Some(p) = find_pack(&list["tile_packs"], *id) else { continue };
+        let tiles = pack_tiles(p);
+        let all: Option<Vec<u32>> = tiles.iter().map(|t| markers.get(t).copied()).collect();
+        if let Some(min) = all.filter(|v| !v.is_empty()).and_then(|v| v.into_iter().min()) {
+            *ver = min;
+        }
+    }
+}
+
 /// Published map versions in `newest..=newest + PROBE_AHEAD`.
 fn available_versions(a: &ureq::Agent, newest: u32) -> Vec<u32> {
     (newest..=newest + PROBE_AHEAD).filter(|v| exists(a, &format!("{CDN}/{v}/mappack-gzip.json.gz"))).collect()
@@ -121,8 +151,8 @@ fn pack_node(p: &Value, installed: &BTreeMap<u64, u32>, dates: &BTreeMap<u32, St
 }
 
 /// Pack tree (continent > country > region) of the newest map version, marked with what is installed on the device.
-pub fn packs(tilepacks: &Value) -> Value {
-    let installed = installed_packs(tilepacks);
+pub fn packs(tilepacks: &Value, markers: &BTreeMap<(u32, u32), u32>) -> Value {
+    let mut installed = installed_packs(tilepacks);
     let Some(&newest) = installed.values().max() else {
         return json!({"status": "unknown", "message": "The device has no tilepack-versions.json; nothing to list."});
     };
@@ -134,6 +164,7 @@ pub fn packs(tilepacks: &Value) -> Value {
         return json!({"status": "error", "message": format!("Could not read the pack list of map version v{latest}.")});
     };
     let mut dates: BTreeMap<u32, String> = BTreeMap::new();
+    overlay_markers(&mut installed, &list, markers);
     for v in installed.values().copied().collect::<std::collections::BTreeSet<u32>>() {
         let d = if v == latest { list["created_date"].as_str().and_then(iso_date) } else { mappack(&a, v).and_then(|j| j["created_date"].as_str().and_then(iso_date)) };
         if let Some(d) = d {
@@ -290,8 +321,8 @@ pub(crate) fn download_agent() -> ureq::Agent {
 }
 
 /// `tilepacks` is the content of maps/tilepack-versions.json: `[{"<pack id>": <version>}, ...]`.
-pub fn check(tilepacks: &Value) -> Value {
-    let installed = installed_packs(tilepacks);
+pub fn check(tilepacks: &Value, markers: &BTreeMap<(u32, u32), u32>) -> Value {
+    let mut installed = installed_packs(tilepacks);
     let Some(&newest) = installed.values().max() else {
         return json!({"status": "unknown", "message": "The device has no tilepack-versions.json; nothing to compare."});
     };
@@ -301,12 +332,15 @@ pub fn check(tilepacks: &Value) -> Value {
         return json!({"status": "error", "message": "Could not reach the Wahoo map server. Check your internet connection.", "installed_max": newest});
     };
     let mut versions: BTreeMap<u32, Value> = BTreeMap::new();
+    let latest_list = mappack(&a, latest).unwrap_or(Value::Null);
+    overlay_markers(&mut installed, &latest_list, markers);
     let mut want: Vec<u32> = installed.values().copied().collect();
     want.push(latest);
     want.sort_unstable();
     want.dedup();
     for v in want {
-        versions.insert(v, mappack(&a, v).unwrap_or(Value::Null));
+        let list = if v == latest { latest_list.clone() } else { mappack(&a, v).unwrap_or(Value::Null) };
+        versions.insert(v, list);
     }
     let date_of = |v: u32| versions.get(&v).and_then(|j| j["created_date"].as_str()).and_then(iso_date);
     let mut names: BTreeMap<u64, (String, u64)> = BTreeMap::new();
