@@ -33,6 +33,8 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/api/status", get(status))
         .route("/api/sync", post(start_sync))
         .route("/api/sync/state", get(sync_state))
+        .route("/api/devices/{key}/mappacks/{id}/download", post(start_map_download))
+        .route("/api/mapdownload", get(|| async { Json(crate::mapupdates::download_state()) }))
         .route("/api/devices", get(devices))
         .route("/api/devices/{key}/{section}", get(section))
         .route("/api/devices/{key}/activity/{id}", get(activity))
@@ -56,6 +58,17 @@ async fn upload_route(State(app): St, Path(key): Path<String>, Query(q): Query<H
         .unwrap()
         .map_err(|e| fail(StatusCode::BAD_GATEWAY, e))?;
     Ok(Json(json!({"file": name, "converted": info})))
+}
+
+/// Starts downloading the tiles of one map pack to the local maps folder (not to the device).
+async fn start_map_download(State(app): St, Path((key, id)): Path<(String, u64)>, Query(q): Query<HashMap<String, String>>) -> ApiResult {
+    let d = device(&app, &key)?;
+    let version = q.get("version").and_then(|v| v.parse::<u32>().ok());
+    tokio::task::spawn_blocking(move || crate::mapupdates::start_download(&id.to_string(), version, &d.tilepacks))
+        .await
+        .unwrap()
+        .map_err(|e| fail(StatusCode::BAD_REQUEST, e))?;
+    Ok(Json(crate::mapupdates::download_state()))
 }
 
 async fn status() -> Json<Value> {
@@ -100,9 +113,11 @@ async fn section(State(app): St, Path((key, section)): Path<(String, String)>) -
         "info" => Some(views::info(&d)),
         "firmware" => Some(views::firmware(&d)),
         "mapupdates" => Some(crate::mapupdates::check(&d.tilepacks)),
+        "mappacks" => Some(crate::mapupdates::packs(&d.tilepacks)),
         "battery" => Some(views::battery(&d)),
         "storage" => Some(views::storage(&d)),
         "maps" => Some(views::maps(&d)),
+        "routing" => Some(views::routing(&d)),
         "sensors" => Some(views::sensors(&d)),
         "routes" => Some(views::routes(&d)),
         "plans" => Some(views::plans(&d)),

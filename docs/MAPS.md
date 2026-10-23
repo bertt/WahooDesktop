@@ -8,6 +8,7 @@ What is known about how an ELEMNT stores and receives maps. Most of this is reve
 - [File formats](#file-formats)
 - [Tiles and versions](#tiles-and-versions)
 - [Where Wahoo downloads maps from](#where-wahoo-downloads-maps-from) (CDN layout, map versions, update check, GeoJSON of all tiles)
+- [Routing data (Valhalla)](#routing-data-valhalla)
 - [Building your own maps (community approach)](#building-your-own-maps-community-approach)
 - [What Wahoo Desktop does and does not do](#what-wahoo-desktop-does-and-does-not-do)
 - [Sources](#sources)
@@ -21,8 +22,9 @@ What is known about how an ELEMNT stores and receives maps. Most of this is reve
 | `maps/tilepack-versions.json` | `[{"<tile pack id>": <version>}, ...]` |
 | `maps/tiles_md5`, `maps/routing_md5` | Checksum lists used for integrity checks. |
 | `maps/temp/z8x<x>y<y>.map` | Decompressed copy the device actually renders from. It is removed when a tile is replaced so the new tile is used; leftovers can be deleted. |
-| `maps/routing/<level>/<aaa>/<bbb>/<ccc>.gph.lzma` | Valhalla routing graph tiles (level 2 = local roads). |
+| `maps/routing/<level>/<aaa>/<bbb>/<ccc>.gph.lzma` | Valhalla routing graph tiles (level 0 = highways, 1 = arterial roads, 2 = local roads). See [Routing data (Valhalla)](#routing-data-valhalla). |
 | `maps/routing/routing-config.json` | Valhalla service configuration (loki / meili / thor). |
+| `maps/routing_md5` | `<md5>  <path>` per graph tile; the device's list of its routing files (about 3.3 MB, roughly 40,000 lines). |
 
 ## File formats
 
@@ -159,6 +161,19 @@ A `url_v<version>` is only present when that version's pack list contains the ti
 
 - **Firmware manifests:** a community gist ([Intyre](https://gist.github.com/Intyre/2c0a8e337671ed6f523950ef08e3ca3f)) describes `bolt.wahoofitness.com/boltapp/` version files; these cover firmware only (see the firmware check in the app).
 
+## Routing data (Valhalla)
+
+Besides the Mapsforge tiles used for drawing, the ELEMNT carries routing data for calculating and re-calculating routes on the device. It uses an embedded [Valhalla](https://valhalla.github.io/valhalla/) engine, configured in `maps/routing/routing-config.json` (services `httpd`, `loki` for locating, `meili` for map matching, `thor` for routing; the local service listens on `tcp://*:8002`).
+
+- **Graph tiles:** `maps/routing/<level>/<aaa>/<bbb>/<ccc>.gph.lzma`, each an LZMA-compressed Valhalla graph tile. The levels are Valhalla's hierarchy: 0 = highways (4° tiles), 1 = arterial roads (1° tiles), 2 = local roads (0.25° tiles). On a BOLT2 only level 2 is present.
+- **Tile id and position:** `<aaa><bbb><ccc>` are the digits of the Valhalla tile id, grouped by three. On level 2 the grid has 1440 columns, so `row = id / 1440`, `col = id % 1440`, `lat = -90 + row * 0.25`, `lon = -180 + col * 0.25` (the south-west corner of the tile).
+- **Checksum list:** `maps/routing_md5` has one line per graph tile: `<md5>  /data/media/0/maps/routing/2/000/729/042.gph.lzma`. The ELEMNT uses it for integrity checks. On a BOLT2 (firmware 180.01) it lists 39,642 level-2 tiles spread over the whole world; the Netherlands and Spain are complete (16 tiles per 1° cell).
+- **Not walked by the sync:** listing the roughly 40,000 graph files over MTP is too slow, so the sync stops at `maps/routing/<level>/<aaa>`. Wahoo Desktop instead copies `maps/routing_md5` to its cache and derives tile counts and coverage from it. This is the device's own list, so it shows which tiles are expected, not a verification that every file is present (`WAHOO_PROBE=maps/routing` makes the sync walk deeper, slowly).
+- **Per pack on the CDN:** the pack list has `routing_size` and `routing_coordinates` (tile ids) per pack, shown in the Routing tab for the installed packs. For v23 the world total is 20.3 GB of routing data (24.7 GB with elevation).
+- **Temp files:** `maps/routing/temp` can hold leftovers; they are reported as a warning.
+
+Wahoo Desktop shows this in the **Routing** tab and with `wahoo_cli routing` (see [docs/CLI.md](CLI.md)). It only reads routing data; it does not download or write graph tiles.
+
 ## Building your own maps (community approach)
 
 Wahoo's servers are not required. The tile format is plain Mapsforge, so tiles can be generated from OpenStreetMap data and copied to the device. The [Sommet `wahoo_maps.py`](https://github.com/skinnie/sommet/blob/main/tools/wahoo_maps.py) tool documents a working pipeline (observed on an ELEMNT running BoltApp 1.77.10.1, over `adb`):
@@ -182,7 +197,7 @@ Notes from that work:
 
 ## What Wahoo Desktop does and does not do
 
-- **Does:** read `maps/` over USB (MTP); list installed tiles with their coverage, sizes, dates and versions; resolve pack ids to names; check the public CDN for newer map versions per pack (Maps tab, `wahoo_cli map-updates`) and compare a single tile (`--tile x/y`).
+- **Does:** read `maps/` over USB (MTP); list installed tiles with their coverage, sizes, dates and versions; show the Valhalla routing graph tile counts and coverage from `maps/routing_md5` (Routing tab, `wahoo_cli routing`); resolve pack ids to names; check the public CDN for newer map versions per pack (Maps tab, `wahoo_cli map-updates`) and compare a single tile (`--tile x/y`); show the pack tree with installed packs marked and download a pack's tiles to `%LOCALAPPDATA%\WahooDesktop\maps\<version>\tiles\8\<x>\<y>.map.lzma` (Maps tab, `wahoo_cli map-packs`, `wahoo_cli map-download <pack>`).
 - **Does not (yet):** write downloaded tiles to the device or build maps from OpenStreetMap.
 - **Possible future work:** download a newer tile from the CDN and write it to `maps/tiles/8/<x>/<y>.map.lzma` over USB/MTP, following the install procedure above (keep the original and update the version marker). This is untested with Wahoo Desktop; try it only with a backup of the original tile, and expect that the device may need a restart to pick up changes.
 

@@ -333,6 +333,7 @@ pub fn sync(cache: &Path, pnp_id: &str, friendly: &str) -> Result<(Manifest, Pat
                 || e.path == "factory/serial_number.txt"
                 || e.path == "maps/tilepack-versions.json"
                 || e.path == "maps/routing/routing-config.json"
+                || e.path == "maps/routing_md5"
                 || e.path.starts_with("maps/temp/")
                 || (e.path.starts_with("logs/") && e.size < 2_000_000))
     };

@@ -46,6 +46,9 @@ Exit code is `0` on success and `1` on error (message on stderr).
 | `storage` | no | Capacity and usage breakdown per folder |
 | `maps` | no | Installed map tiles, regions, versions and warnings |
 | `map-updates` | no | Checks Wahoo's public map CDN for newer map versions per tile pack (needs internet). `--tile 131/83` compares one installed tile with the newest version (size, last-modified, download URL) |
+| `map-packs [--all]` | no | Lists the map pack tree (continent > country > region) of the newest map version, marking the packs installed on the device. Without `--all` only installed packs and their parents are shown (needs internet) |
+| `map-download <pack> [--version <n>]` | no | Downloads all tiles of one pack from Wahoo's CDN to `%LOCALAPPDATA%\WahooDesktop\maps\<version>\tiles\8\<x>\<y>.map.lzma`. `<pack>` is an id, a name (`Netherlands`) or a full name (`"Europe > Netherlands"`). Existing tiles of the same size are skipped. This only downloads to your computer; nothing is written to the device yet (needs internet) |
+| `routing` | no | Valhalla routing data: graph tile count per level and coverage (from the device's `maps/routing_md5` list, cached by `sync`), service config and leftovers |
 | `sensors` | no | Sensor readings (temperature, altitude, ...) and sensors seen by the device |
 | `routes` | no | Saved routes |
 | `plans` | no | Planned workouts |
@@ -66,6 +69,8 @@ wahoo_cli activity 2026-10-22-144634-ELEMNT BOLT F9F1-421-0
 wahoo_cli --json stats > stats.json
 wahoo_cli add-route my-ride.gpx
 wahoo_cli ls maps/tiles/8/
+wahoo_cli map-packs
+wahoo_cli map-download Netherlands          # use case: update the Netherlands pack (about 170 MB)
 wahoo_cli pull system_update_elemnt/18001/BoltApp BoltApp.apk
 ```
 
@@ -109,4 +114,4 @@ description: Read a Wahoo ELEMNT over USB and answer questions about its battery
 - `--json` output is the same data the desktop UI uses, so it is a convenient way to attach diagnostics to an issue (`wahoo_cli --json debug`).
 - `add-route` accepts up to about 10,000 track points per GPX file. The device may need a moment (or a restart) to show a new route.
 - If `status` reports that USB is attached but the device is off, switch the ELEMNT on (not just charging) and try again.
-- Downloading maps to the device is not possible over USB; see [Map data](../README.md#map-data-source-and-format) in the README.
+- Downloading maps to the device is not possible over USB yet; `map-download` only saves tiles on your computer. See [Map data](../README.md#map-data-source-and-format) in the README.

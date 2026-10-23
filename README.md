@@ -44,9 +44,11 @@ Notes: map, routing and storage details depend on the firmware's folder layout (
 - Overview, firmware/hardware, serial and factory info
 - Firmware update check: compares the installed version with Wahoo's public manifest (`version.json-<model>`) and shows "up to date" or "update available" (also `wahoo_cli firmware`; one of two features that use the internet, and it fails gracefully offline)
 - Map update check: resolves tile pack ids to names and compares each pack's version with the newest map version on Wahoo's public CDN (Maps tab, `wahoo_cli map-updates [--tile x/y]`)
+- Map packs: the Maps tab lists the pack tree (continent > country > region) with the packs installed on the device and a Download/Update button per pack (also `wahoo_cli map-packs`, `wahoo_cli map-download <pack>`). Tiles are saved to `%LOCALAPPDATA%\WahooDesktop\maps\<version>`; writing them to the device is the next step
 - Battery history, drain and estimated runtime
 - Storage breakdown by folder
-- Maps: installed tiles on a map (colour by size/version/marker), regions, versions, leftover temp files, routing config, warnings
+- Maps: installed tiles on a map (colour by size/version/marker), versions, leftover temp files, warnings
+- Routing: own tab (and `wahoo_cli routing`) with the Valhalla graph tiles: count per level and a coverage map built from `maps/routing_md5` (cached by `sync`, so run a sync once after updating), the service config and the routing size of installed packs
 - Sensors (from FIT files), saved routes (click to view on a map; drag and drop a .gpx/.fit to add one to the device), planned workouts, derived alerts
 - History: sortable/filterable activity list; details with map, charts, laps, events and raw FIT message debug
 - Statistics: totals, per month/year/weekday/hour, personal records
@@ -68,6 +70,7 @@ Connect the ELEMNT with a data cable, switch it on and click **Sync device**. Fi
 ```
 wahoo_cli status | sync | info | battery | storage | maps | sensors
 wahoo_cli routes | add-route <file.gpx|file.fit> | plans | alerts | history -n 20 | activity <id> | stats | debug
+wahoo_cli map-updates [--tile x/y] | map-packs [--all] | map-download <pack|id> [--version n]
 wahoo_cli pull <device path> <local file>
 wahoo_cli ls [prefix]
 ```
@@ -88,7 +91,7 @@ Full details (layout, formats, tile maths, versions, building your own maps): **
 
 ## Limitations
 
-- **Maps are not written to the device.** Tiles can be downloaded from the public CDN, but Wahoo Desktop only checks for updates; installing a tile over USB is not implemented (see [docs/MAPS.md](docs/MAPS.md)).
+- **Maps are not written to the device.** Tiles can be downloaded from the public CDN to the local `maps` folder (Maps tab or `wahoo_cli map-download`), but installing a tile over USB is not implemented (see [docs/MAPS.md](docs/MAPS.md)).
 - Alerts are derived (low storage/battery, staged firmware, crash files, leftover maps); the device does not store alert definitions in readable form.
 - Live battery/sensor data over Bluetooth is not implemented.
 

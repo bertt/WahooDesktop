@@ -172,7 +172,6 @@ pub fn maps(d: &DeviceData) -> Value {
     let mut marker_mtime: BTreeMap<String, i64> = BTreeMap::new();
     let mut version_dates: BTreeMap<String, (i64, i64)> = BTreeMap::new();
     let mut pax = (0u64, 0u64);
-    let mut routing_dirs = 0u64;
     let mut other = Vec::new();
     for e in &d.manifest.entries {
         let p = e.path.as_str();
@@ -204,9 +203,7 @@ pub fn maps(d: &DeviceData) -> Value {
                     }
                 }
             }
-        } else if p.starts_with("maps/routing/") && e.dir {
-            routing_dirs += 1;
-        } else if p.starts_with("maps/") && !e.dir && !p.starts_with("maps/temp/") {
+        } else if p.starts_with("maps/") && !e.dir && !p.starts_with("maps/temp/") && !p.starts_with("maps/routing/") {
             other.push(json!({"path": p, "bytes": e.size}));
         }
     }
@@ -269,7 +266,6 @@ pub fn maps(d: &DeviceData) -> Value {
         "temp": temp,
         "temp_bytes": temp_bytes,
         "tilepacks": d.tilepacks,
-        "routing": {"folders": routing_dirs, "config": d.routing_config},
         "other_files": other,
         "pax_headers": {"files": pax.0, "bytes": pax.1},
         "warnings": warnings,
@@ -289,6 +285,74 @@ pub fn maps(d: &DeviceData) -> Value {
             ],
             "note": "Both URLs are readable without credentials. Only the bucket root is not listable. The Mapbox tilepack API (api.mapbox.com/tilepack/v1/...) also appears in the firmware, but only for Mapbox's own tiles.",
         },
+    })
+}
+
+/// Parses `maps/routing_md5` (`<md5>  /data/media/0/maps/routing/<level>/<aaa>/<bbb>/<ccc>.gph.lzma`) into the
+/// number of Valhalla graph tiles per level and a coverage grid of 1-degree cells for level 2 (local roads).
+/// A Valhalla tile id is `row * columns + column` on a grid of 4 / 1 / 0.25 degree tiles for levels 0 / 1 / 2.
+fn routing_listing(text: &str) -> Value {
+    const NAMES: [&str; 3] = ["highways", "arterial roads", "local roads"];
+    let mut levels: BTreeMap<u32, u64> = BTreeMap::new();
+    let mut cells: BTreeMap<(i32, i32), u32> = BTreeMap::new();
+    for line in text.lines() {
+        let Some(path) = line.split_once(char::is_whitespace).map(|(_, p)| p.trim()) else { continue };
+        let Some(rest) = path.split("maps/routing/").nth(1) else { continue };
+        let Some(rest) = rest.strip_suffix(".gph.lzma").or_else(|| rest.strip_suffix(".gph")) else { continue };
+        let mut parts = rest.split('/');
+        let Some(level) = parts.next().and_then(|l| l.parse::<u32>().ok()) else { continue };
+        let Ok(id) = parts.collect::<String>().parse::<u64>() else { continue };
+        *levels.entry(level).or_default() += 1;
+        if level == 2 {
+            let (row, col) = ((id / 1440) as f64, (id % 1440) as f64);
+            *cells.entry(((-90.0 + row * 0.25).floor() as i32, (-180.0 + col * 0.25).floor() as i32)).or_default() += 1;
+        }
+    }
+    let total: u64 = levels.values().sum();
+    let level_rows: Vec<Value> = levels.iter().map(|(l, n)| json!({"level": l, "name": NAMES.get(*l as usize), "tiles": n})).collect();
+    let coverage: Vec<Value> = cells.iter().map(|((lat, lon), n)| json!({"bbox": [lon, lat, lon + 1, lat + 1], "tiles": n})).collect();
+    json!({"tiles": total, "levels": level_rows, "coverage": coverage})
+}
+
+/// Valhalla routing data on the device (`maps/routing`): graph tile listing, checksum list and service config.
+pub fn routing(d: &DeviceData) -> Value {
+    let (mut folders, mut temp_files, mut temp_bytes) = (0u64, 0u64, 0u64);
+    let (mut md5, mut config_file) = (Value::Null, Value::Null);
+    for e in &d.manifest.entries {
+        let p = e.path.as_str();
+        if p.contains("PaxHeader") {
+            continue;
+        }
+        if p == "maps/routing_md5" {
+            md5 = json!({"bytes": e.size, "modified": e.modified});
+        } else if p == "maps/routing/routing-config.json" {
+            config_file = json!({"bytes": e.size, "modified": e.modified});
+        } else if let Some(rest) = p.strip_prefix("maps/routing/") {
+            if e.dir {
+                folders += 1;
+            } else if rest.starts_with("temp/") {
+                temp_files += 1;
+                temp_bytes += e.size;
+            }
+        }
+    }
+    let listing = std::fs::read(d.dir.join("files").join("maps").join("routing_md5")).ok().map(|b| routing_listing(&String::from_utf8_lossy(&b)));
+    let mut warnings = Vec::new();
+    if listing.is_none() {
+        warnings.push("maps/routing_md5 is not in the local cache yet: run a sync to read the graph tile list.".to_string());
+    }
+    if temp_files > 0 {
+        warnings.push(format!("maps/routing/temp holds {temp_files} leftover file(s) ({:.1} MB).", temp_bytes as f64 / 1e6));
+    }
+    json!({
+        "graph_tiles": listing,
+        "folders": folders,
+        "temp": {"files": temp_files, "bytes": temp_bytes},
+        "checksums": md5,
+        "config_file": config_file,
+        "config": d.routing_config,
+        "warnings": warnings,
+        "layout": "maps/routing/<level>/<aaa>/<bbb>/<ccc>.gph.lzma (LZMA-compressed Valhalla graph tiles; level 0 = highways, 1 = arterial roads, 2 = local roads). The tile list comes from maps/routing_md5, the device's checksum list; the sync does not walk the roughly 40,000 graph files themselves.",
     })
 }
 

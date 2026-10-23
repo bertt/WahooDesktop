@@ -44,7 +44,7 @@ function fit(map, b, pad = 40) { map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { p
 
 // ---------- app state ----------
 let devices = [], detection = null, current = null, tab = "overview";
-const TABS = [["overview", "Overview"], ["battery", "Battery"], ["storage", "Storage"], ["maps", "Maps"], ["sensors", "Sensors"], ["routes", "Routes"], ["plans", "Workouts"], ["alerts", "Alerts"], ["history", "History"], ["stats", "Statistics"], ["debug", "Technical"]];
+const TABS = [["overview", "Overview"], ["battery", "Battery"], ["storage", "Storage"], ["maps", "Maps"], ["routing", "Routing"], ["sensors", "Sensors"], ["routes", "Routes"], ["plans", "Workouts"], ["alerts", "Alerts"], ["history", "History"], ["stats", "Statistics"], ["debug", "Technical"]];
 
 async function refreshStatus() {
   try {
@@ -85,6 +85,46 @@ function openDevice(key, t = "overview", id) {
   window.scrollTo(0, 0);
   const fn = VIEWS[tab]; Promise.resolve(fn(key, $("#pane"))).catch(e => $("#pane").innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`);
   if (id) showActivity(key, id);
+}
+
+// ---------- map packs (download) ----------
+async function mapPacks(key) {
+  const box = $("#mpk"); if (!box) return;
+  let u; try { u = await get(key, "mappacks"); } catch (e) { box.textContent = "Could not load packs: " + e.message; return; }
+  if (u.status !== "ok") { box.textContent = u.message; return; }
+  let all = false;
+  const node = (p, d) => {
+    if (!all && !p.installed_count) return "";
+    const kids = p.children.map(c => node(c, d + 1)).join("");
+    const inst = p.installed_version != null ? `<span class="pill pill-green">installed</span>` : "";
+    const stale = p.installed_version != null && p.installed_version < u.latest_version;
+    const btn = p.downloadable ? `<button class="mpk-dl" data-id="${p.id}">${stale ? "Update" : "Download"}</button>` : "";
+    return `<tr><td style="padding-left:${d * 18 + 4}px">${esc(p.name)} ${inst}</td><td class="num" style="${stale ? "color:#f5a623" : ""}">${p.installed_version != null ? "v" + p.installed_version : ""}</td><td class="num">${esc(p.installed_date || "")}</td><td class="num">${p.downloadable ? p.tiles : ""}</td><td class="num">${fB(p.size_bytes)}</td><td class="num">${btn}</td></tr>${kids}`;
+  };
+  const draw = () => {
+    box.innerHTML = `<div class="note" style="margin-top:0">Map version v${u.latest_version}${u.latest_date ? " (" + esc(u.latest_date) + ")" : ""}. ${u.installed_total} packs are installed on the device. Downloads go to <code>${esc(u.download_dir)}</code> (not to the device yet).
+      <label style="float:right"><input type="checkbox" id="mpk-all" ${all ? "checked" : ""}> show all packs</label></div>
+      <div id="mpk-state" class="note"></div>
+      <div class="scroll" style="max-height:420px"><table><tr><th>Pack</th><th class="num">Version</th><th class="num">Installed on</th><th class="num">Tiles</th><th class="num">Size</th><th></th></tr>${u.packs.map(p => node(p, 0)).join("")}</table></div>`;
+    $("#mpk-all").onchange = e => { all = e.target.checked; draw(); };
+    box.querySelectorAll(".mpk-dl").forEach(b => b.onclick = async () => {
+      box.querySelectorAll(".mpk-dl").forEach(x => x.disabled = true);
+      $("#mpk-state").innerHTML = `<b>Starting download…</b><div class="bar"><i style="width:3%;background:var(--accent)"></i></div>`;
+      try { await api(`/devices/${encodeURIComponent(key)}/mappacks/${b.dataset.id}/download?version=${u.latest_version}`, { method: "POST" }); poll(); }
+      catch (e) { $("#mpk-state").textContent = "Could not start: " + e.message; box.querySelectorAll(".mpk-dl").forEach(x => x.disabled = false); }
+    });
+    poll(true);
+  };
+  const poll = async () => {
+    const s = await api("/mapdownload").catch(() => null), el = $("#mpk-state"); if (!s || !el) return;
+    const p = s.bytes_total ? Math.min(100, Math.round(s.bytes_done / s.bytes_total * 100)) : 0;
+    if (s.running) el.innerHTML = `<b>Downloading ${esc(s.pack_name)} (v${s.version}): ${p}%</b> · tile ${s.tiles_done}/${s.tiles_total} · ${fB(s.bytes_done)} of ${fB(s.bytes_total)}<div class="bar" style="height:14px"><i style="width:${p}%;background:var(--accent)"></i></div>`;
+    else if (s.error) el.textContent = "Download failed: " + s.error;
+    else if (s.finished) el.innerHTML = `<b style="color:#2ecc8f">✓ Downloaded ${esc(s.pack_name)} (v${s.version})</b>: ${s.tiles_total} tiles in <code>${esc(s.dir)}</code><div class="bar" style="height:14px"><i style="width:100%;background:var(--green)"></i></div>`;
+    box.querySelectorAll(".mpk-dl").forEach(b => b.disabled = !!s.running);
+    if (s.running) setTimeout(poll, 500);
+  };
+  draw();
 }
 
 // ---------- views ----------
@@ -130,18 +170,11 @@ const VIEWS = {
   },
   async maps(key, el) {
     const m = await get(key, "maps");
-    el.innerHTML = `<div class="grid g4">${kpi("Tiles installed", m.tile_count, fB(m.tile_bytes))}${kpi("Regions", m.regions.length, "covered areas")}${kpi("Map versions", Object.keys(m.versions).join(", ") || "–", Object.entries(m.versions).map(([v, n]) => { const d = (m.version_dates || {})[v]; const r = d ? (fDay(d.oldest) === fDay(d.newest) ? fDay(d.oldest) : `${fDay(d.oldest)} – ${fDay(d.newest)}`) : ""; return `v${v}: ${n}${r ? " (" + r + ")" : ""}`; }).join(" · ") + (Object.keys(m.version_dates || {}).length ? "" : " · date unknown"))}${kpi("Routing folders", m.routing.folders, "Valhalla graph tiles")}</div>
+    el.innerHTML = `<div class="grid g4">${kpi("Tiles installed", m.tile_count, fB(m.tile_bytes))}${kpi("Regions", m.regions.length, "covered areas")}${kpi("Map versions", Object.keys(m.versions).join(", ") || "–", Object.entries(m.versions).map(([v, n]) => { const d = (m.version_dates || {})[v]; const r = d ? (fDay(d.oldest) === fDay(d.newest) ? fDay(d.oldest) : `${fDay(d.oldest)} – ${fDay(d.newest)}`) : ""; return `v${v}: ${n}${r ? " (" + r + ")" : ""}`; }).join(" · ") + (Object.keys(m.version_dates || {}).length ? "" : " · date unknown"))}</div>
     ${m.warnings.map(w => `<div class="warn" style="margin-top:10px">⚠ ${esc(w)}</div>`).join("")}
     <div class="grid g2" style="margin-top:14px"><div class="card" style="grid-column:1/-1"><h4>Coverage map <span style="float:right;text-transform:none">Colour by <select id="mc"><option value="size">size</option><option value="version">version</option><option value="marker">missing marker</option></select></span></h4><div id="mmap" class="map tall"></div><div class="legend" id="mleg"></div></div>
-    ${card("Regions (approx.)", `<div class="scroll" style="max-height:420px"><table><tr><th>Region</th><th class="num">Tiles</th><th class="num">Size</th></tr>${m.regions.map(r => `<tr><td>${esc(r.region)}</td><td class="num">${r.tiles}</td><td class="num">${fB(r.bytes)}</td></tr>`).join("")}</table></div>`)}
-    <div class="card"><h4>Map updates</h4><div id="mupd" class="note" style="margin-top:0">Checking Wahoo's map server…</div></div></div>
-    <details style="margin-top:14px" open><summary>Where the device downloads maps from</summary>${card("Map source URLs", `<div class="note" style="margin-top:0">${esc(m.sources.found_in)}</div>${kv({ "Maps CDN base": m.sources.maps_base, "Firmware manifest (BOLT2)": m.sources.firmware_manifest, "Files on device": m.sources.files_on_device.join(", ") })}<h4 style="margin-top:14px">Example requests</h4>${m.sources.examples.map(x => `<div class="note"><b>${esc(x.title)}</b></div><pre>${esc(x.request)}</pre><div class="note">→ ${esc(x.result)}</div>`).join("")}<div class="note">${esc(m.sources.note)}</div>`)}</details>
-    <details style="margin-top:14px"><summary>Technical map details</summary><div class="grid g2">${card("Leftover temp files", `<table>${m.temp.map(t => `<tr><td>${esc(t.path)}</td><td class="num">${fB(t.bytes)}</td></tr>`).join("") || "<tr><td>none</td></tr>"}</table>`)}${card("Other files in /maps", `<table>${m.other_files.map(t => `<tr><td>${esc(t.path)}</td><td class="num">${fB(t.bytes)}</td></tr>`).join("")}</table><div class="note">PaxHeader junk: ${m.pax_headers.files} files</div>`)}</div><pre>${esc(JSON.stringify(m.routing.config, null, 1))}</pre></details>`;
-    get(key, "mapupdates").then(u => {
-      const box = $("#mupd"); if (!box) return;
-      const cls = u.status === "update_available" ? "#f5a623" : u.status === "up_to_date" ? "#2ecc8f" : "#ff5c6c";
-      box.innerHTML = `<div style="color:${cls};font-weight:600;margin-bottom:6px">${esc(u.message)}</div>` + ((u.packs || []).length ? `<div class="scroll" style="max-height:260px"><table><tr><th>Pack</th><th class="num">Installed</th><th class="num">Latest</th></tr>${u.packs.map(p => `<tr><td>${esc(p.name || "Pack " + p.id)}</td><td class="num">v${p.installed_version}${p.installed_date ? " · " + esc(p.installed_date) : ""}</td><td class="num" style="color:${p.status === "update_available" ? "#f5a623" : "#2ecc8f"}">v${p.latest_version}${p.latest_date ? " · " + esc(p.latest_date) : ""}</td></tr>`).join("")}</table></div><div class="note">Tiles: <code>${esc(u.tile_url)}</code>. Compare one tile with <code>wahoo_cli map-updates --tile x/y</code>.</div>` : "");
-    }).catch(e => { const box = $("#mupd"); if (box) box.textContent = "Could not check: " + e.message; });
+    <div class="card" style="grid-column:1/-1"><h4>Map packs</h4><div id="mpk" class="note" style="margin-top:0">Loading pack list…</div></div></div>`;
+    mapPacks(key);
     const map = newMap($("#mmap"), { zoom: 2, center: [10, 30] }); if (!map) return;
     const sizeColor = ["step", ["get", "bytes"], "#1d4e89", 200000, "#2f9bff", 1e6, "#7c5cff", 4e6, "#e46bd6", 1.2e7, "#ff5c6c"];
     const colorExpr = { size: sizeColor, version: ["match", ["to-string", ["get", "version"]], "18", "#2ecc8f", "12", "#2f9bff", "null", "#ff5c6c", "#f5b83d"], marker: ["case", ["==", ["get", "version"], null], "#ff5c6c", "#2f9bff"] };
@@ -157,6 +190,32 @@ const VIEWS = {
       map.on("click", "tf", e => { const p = e.features[0].properties; new maplibregl.Popup().setLngLat(e.lngLat).setHTML(`<b>Tile z${p.z}/${p.x}/${p.y}</b><br>${esc(p.region)}<br>${fB(p.bytes)}<br>version: ${p.version == "null" || p.version == null ? "–" : p.version}<br>made/installed: ${p.modified && p.modified != "null" ? fDay(+p.modified) : "unknown"}`).addTo(map); });
       map.on("mouseenter", "tf", () => map.getCanvas().style.cursor = "pointer"); map.on("mouseleave", "tf", () => map.getCanvas().style.cursor = "");
     });
+  },
+  async routing(key, el) {
+    const r = await get(key, "routing"), c = r.config || {}, g = r.graph_tiles, l2 = g?.levels.find(l => l.level === 2);
+    el.innerHTML = `<div class="grid g4">${kpi("Graph tiles", g ? g.tiles.toLocaleString() : "–", "listed in maps/routing_md5")}${kpi("Local-road tiles", l2 ? l2.tiles.toLocaleString() : "–", "level 2, 0.25° tiles")}${kpi("Checksum list", r.checksums ? fB(r.checksums.bytes) : "–", "maps/routing_md5" + (r.checksums?.modified ? " · " + fDay(r.checksums.modified) : ""))}${kpi("Service config", r.config_file ? fB(r.config_file.bytes) : "–", "routing-config.json" + (r.config_file?.modified ? " · " + fDay(r.config_file.modified) : ""))}</div>
+    ${r.warnings.map(w => `<div class="warn" style="margin-top:10px">⚠ ${esc(w)}</div>`).join("")}
+    <div class="grid g2" style="margin-top:14px">
+      <div class="card" style="grid-column:1/-1"><h4>Routing coverage (1° cells, colour = number of local-road tiles)</h4><div id="rmap" class="map tall"></div></div>
+      ${card("Graph tiles per level", `<table><tr><th>Level</th><th>Meaning</th><th class="num">Tiles</th></tr>${(g?.levels || []).map(l => `<tr><td>${l.level}</td><td>${esc(l.name || "")}</td><td class="num">${l.tiles.toLocaleString()}</td></tr>`).join("") || '<tr><td colspan="3">no tile list synced yet</td></tr>'}</table><div class="note">${esc(r.layout)}</div>`)}
+      ${card("Valhalla service", kv({ Listen: c.httpd?.service?.listen, "Search cutoff": c.loki?.service_defaults?.search_cutoff != null ? c.loki.service_defaults.search_cutoff + " m" : null, "Node snap tolerance": c.loki?.service_defaults?.node_snap_tolerance, "Loki actions": (c.loki?.actions || []).join(", "), "Map-matching (meili) profiles": Object.keys(c.meili || {}).join(", "), "Leftover temp files": r.temp.files ? `${r.temp.files} (${fB(r.temp.bytes)})` : "none" }) + `<div class="note">The ELEMNT runs an embedded <a href="https://valhalla.github.io/valhalla/" target="_blank">Valhalla</a> routing engine that reads these graph tiles to calculate routes and re-route on the device.</div>`)}
+      <div class="card" style="grid-column:1/-1"><h4>Routing data of installed map packs (from Wahoo's map server)</h4><div id="rpk" class="note" style="margin-top:0">Loading…</div></div></div>
+    <details style="margin-top:14px"><summary>routing-config.json</summary><pre>${esc(JSON.stringify(c, null, 1))}</pre></details>`;
+    const rm = newMap($("#rmap"), { zoom: 2, center: [10, 30] });
+    if (rm && g?.coverage.length) rm.on("load", () => {
+      rm.addSource("r", { type: "geojson", data: { type: "FeatureCollection", features: g.coverage.map(t => ({ type: "Feature", properties: { tiles: t.tiles }, geometry: { type: "Polygon", coordinates: [[[t.bbox[0], t.bbox[1]], [t.bbox[2], t.bbox[1]], [t.bbox[2], t.bbox[3]], [t.bbox[0], t.bbox[3]], [t.bbox[0], t.bbox[1]]]] } })) } });
+      rm.addLayer({ id: "rf", type: "fill", source: "r", paint: { "fill-color": ["step", ["get", "tiles"], "#1d4e89", 4, "#2f9bff", 9, "#7c5cff", 14, "#e46bd6"], "fill-opacity": .6 } });
+      rm.addLayer({ id: "rl", type: "line", source: "r", paint: { "line-color": "#ffffff", "line-opacity": .25, "line-width": .6 } });
+      const b = [180, 90, -180, -90]; g.coverage.forEach(t => { b[0] = Math.min(b[0], t.bbox[0]); b[1] = Math.min(b[1], t.bbox[1]); b[2] = Math.max(b[2], t.bbox[2]); b[3] = Math.max(b[3], t.bbox[3]); }); fit(rm, b, 30);
+      rm.on("click", "rf", e => new maplibregl.Popup().setLngLat(e.lngLat).setHTML(`<b>${e.features[0].properties.tiles}</b> local-road tiles in this 1° cell`).addTo(rm));
+    });
+    get(key, "mappacks").then(u => {
+      const box = $("#rpk"); if (!box) return;
+      if (u.status !== "ok") { box.textContent = u.message; return; }
+      const rows = []; const walk = (ps, pre) => ps.forEach(p => { const n = pre ? pre + " › " + p.name : p.name; if (p.installed_version != null) rows.push([n, p]); walk(p.children, n); }); walk(u.packs, "");
+      const tot = rows.reduce((a, [, p]) => a + (p.routing_bytes || 0), 0);
+      box.innerHTML = `<div class="scroll" style="max-height:320px"><table><tr><th>Pack</th><th class="num">Routing tiles</th><th class="num">Routing size (v${u.latest_version})</th></tr>${rows.map(([n, p]) => `<tr><td>${esc(n)}</td><td class="num">${p.routing_tiles}</td><td class="num">${fB(p.routing_bytes)}</td></tr>`).join("")}<tr><th>Total</th><th></th><th class="num">${fB(tot)}</th></tr></table></div><div class="note">Sizes are those published for the newest map version; Wahoo's pack list also holds the routing tile ids per pack.</div>`;
+    }).catch(e => { const b = $("#rpk"); if (b) b.textContent = "Could not load: " + e.message; });
   },
   async sensors(key, el) {
     const s = await get(key, "sensors"), ext = s.devices.filter(d => !d.internal), int = s.devices.filter(d => d.internal);

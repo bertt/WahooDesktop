@@ -41,6 +41,20 @@ enum Cmd {
         #[arg(long)]
         tile: Option<String>,
     },
+    /// List the map pack tree (continent > country > region); installed packs only unless `--all`
+    MapPacks {
+        #[arg(long)]
+        all: bool,
+    },
+    /// Download a map pack (id or name, e.g. Netherlands) from Wahoo's CDN to the local maps folder
+    MapDownload {
+        pack: String,
+        /// Map version (defaults to the newest)
+        #[arg(long)]
+        version: Option<u32>,
+    },
+    /// Valhalla routing data on the device: graph tiles per level, checksums and service config
+    Routing,
     /// Sensors seen by the device
     Sensors,
     /// Saved routes
@@ -163,6 +177,7 @@ fn run(cli: Cli) -> Result<(), String> {
         Cmd::Battery => views::battery(&d),
         Cmd::Storage => views::storage(&d),
         Cmd::Maps => views::maps(&d),
+        Cmd::Routing => views::routing(&d),
         Cmd::MapUpdates { tile } => {
             let r = wahoo_desktop::mapupdates::check(&d.tilepacks);
             let Some(t) = tile else {
@@ -193,6 +208,50 @@ fn run(cli: Cli) -> Result<(), String> {
                 println!("Download:          {}", remote["url"].as_str().unwrap_or(""));
             }
             return Ok(());
+        }
+        Cmd::MapPacks { all } => {
+            let r = wahoo_desktop::mapupdates::packs(&d.tilepacks);
+            if cli.json {
+                print_json(&r);
+            } else if r["status"] != "ok" {
+                return Err(r["message"].as_str().unwrap_or("unknown error").to_string());
+            } else {
+                println!("Map version v{} ({}); {} packs installed on the device. Download folder: {}", r["latest_version"], r["latest_date"].as_str().unwrap_or("?"), r["installed_total"], r["download_dir"].as_str().unwrap_or(""));
+                fn walk(v: &Value, depth: usize, all: bool) {
+                    for p in v.as_array().into_iter().flatten() {
+                        if !all && p["installed_count"].as_u64().unwrap_or(0) == 0 {
+                            continue;
+                        }
+                        let mark = match p["installed_version"].as_u64() { Some(v) => format!("installed v{v} {}", p["installed_date"].as_str().unwrap_or("")), None => String::new() };
+                        println!("{}{:>4} {:<30} {:>9}  {}", "  ".repeat(depth), p["id"], p["name"].as_str().unwrap_or("?"), bytes(p["size_bytes"].as_u64().unwrap_or(0)), mark);
+                        walk(&p["children"], depth + 1, all);
+                    }
+                }
+                walk(&r["packs"], 0, *all);
+            }
+            return Ok(());
+        }
+        Cmd::MapDownload { pack, version } => {
+            wahoo_desktop::mapupdates::start_download(pack, *version, &d.tilepacks)?;
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                let s = wahoo_desktop::mapupdates::download_state();
+                if !cli.json {
+                    eprint!("\r{} v{}: tile {}/{}  {} of {}   ", s["pack_name"].as_str().unwrap_or(""), s["version"], s["tiles_done"], s["tiles_total"], bytes(s["bytes_done"].as_u64().unwrap_or(0)), bytes(s["bytes_total"].as_u64().unwrap_or(0)));
+                }
+                if s["running"] == false {
+                    if let Some(e) = s["error"].as_str() {
+                        return Err(e.to_string());
+                    }
+                    if cli.json {
+                        print_json(&s);
+                    } else {
+                        eprintln!();
+                        println!("Downloaded {} tiles to {}", s["tiles_done"], s["dir"].as_str().unwrap_or(""));
+                    }
+                    return Ok(());
+                }
+            }
         }
         Cmd::Sensors => views::sensors(&d),
         Cmd::Routes => views::routes(&d),
@@ -280,6 +339,25 @@ fn run(cli: Cli) -> Result<(), String> {
                 println!("! {}", w.as_str().unwrap_or(""));
             }
             println!("{}", value["download_note"].as_str().unwrap_or(""));
+        }
+        Cmd::Routing => {
+            let g = &value["graph_tiles"];
+            if g.is_null() {
+                println!("Graph tiles   unknown (run `wahoo_cli sync` to read maps/routing_md5)");
+            } else {
+                println!("Graph tiles   {} (from maps/routing_md5)", g["tiles"]);
+                for l in g["levels"].as_array().into_iter().flatten() {
+                    println!("  level {} {:<15} {:>7} tiles", l["level"], l["name"].as_str().unwrap_or(""), l["tiles"]);
+                }
+                println!("Coverage      {} cells of 1 degree (level 2)", g["coverage"].as_array().map_or(0, |a| a.len()));
+            }
+            println!("Folders       {}", value["folders"]);
+            if let Some(b) = value["checksums"]["bytes"].as_u64() { println!("routing_md5   {}", bytes(b)); }
+            if let Some(b) = value["config_file"]["bytes"].as_u64() { println!("routing-config.json {}", bytes(b)); }
+            for w in value["warnings"].as_array().into_iter().flatten() {
+                println!("! {}", w.as_str().unwrap_or(""));
+            }
+            println!("{}", value["layout"].as_str().unwrap_or(""));
         }
         Cmd::Alerts => {
             for a in value["items"].as_array().unwrap() {
