@@ -65,7 +65,7 @@ Elevation (terrain) data is a separate, optional layer in Wahoo's pack list. Ver
 
 - **Routing tab:** tile count per level, coverage map (from `routing_md5`), service config, leftovers, and a table of installed packs with version, routing tiles and routing size.
 - **CLI:** `wahoo_cli routing` (cache only, see [CLI.md](CLI.md)).
-- **Sync:** copies `maps/routing_md5` to the cache. A sync only copies it when its size changed, so run a sync once after updating the app.
+- **Sync:** copies `maps/routing_md5` to the cache. A sync only copies it when its size changed, so run a sync once after updating the app. It also fetches three sample level-2 graph tiles around Utrecht (`2/000/818/659`-`661`) by path, when present on the device.
 - It only **reads** routing data. It does not download or write graph tiles.
 
 ## Limitations

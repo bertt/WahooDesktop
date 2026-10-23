@@ -272,6 +272,13 @@ pub fn upload(pnp_id: &str, folder: &str, file_name: &str, data: &[u8]) -> Resul
     Ok(name)
 }
 
+/// Level-2 Valhalla graph tiles (0.25 degree) around Utrecht: lat 52.0-52.25, lon 4.75-5.5 (ids 818659-818661).
+const SAMPLE_ROUTING_TILES: &[&str] = &[
+    "maps/routing/2/000/818/659.gph.lzma",
+    "maps/routing/2/000/818/660.gph.lzma",
+    "maps/routing/2/000/818/661.gph.lzma",
+];
+
 /// Walks the whole device tree and mirrors small/needed files into `cache`.
 pub fn sync(cache: &Path, pnp_id: &str, friendly: &str) -> Result<(Manifest, PathBuf)> {
     let _g = ComGuard::new();
@@ -352,6 +359,37 @@ pub fn sync(cache: &Path, pnp_id: &str, friendly: &str) -> Result<(Manifest, Pat
             }
             if std::fs::write(&local, bytes).is_ok() {
                 copied.push(e.path.clone());
+            }
+        }
+    }
+
+    // The routing tree is not walked, so fetch a few sample graph tiles around Utrecht by path.
+    for path in SAMPLE_ROUTING_TILES {
+        let local = files.join(path);
+        if local.metadata().map(|m| m.len() > 0).unwrap_or(false) {
+            continue;
+        }
+        let Some(storage) = s.children("DEVICE").into_iter().next() else { break };
+        let mut cur = storage;
+        let mut found = true;
+        for part in path.split('/') {
+            match s.child_names(&cur).into_iter().find(|(_, n)| n.eq_ignore_ascii_case(part)) {
+                Some((id, _)) => cur = id,
+                None => {
+                    found = false;
+                    break;
+                }
+            }
+        }
+        if !found {
+            continue;
+        }
+        if let Ok(bytes) = s.read(&cur) {
+            if let Some(p) = local.parent() {
+                let _ = std::fs::create_dir_all(p);
+            }
+            if std::fs::write(&local, bytes).is_ok() {
+                copied.push((*path).to_string());
             }
         }
     }
