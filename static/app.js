@@ -98,11 +98,11 @@ async function mapPacks(key) {
     const kids = p.children.map(c => node(c, d + 1)).join("");
     const inst = p.installed_version != null ? `<span class="pill pill-green">installed</span>` : "";
     const stale = p.installed_version != null && p.installed_version < u.latest_version;
-    const btn = p.downloadable ? `<button class="mpk-dl" data-id="${p.id}">${stale ? "Update" : "Download"}</button>` : "";
+    const btn = p.downloadable ? `<button class="btn mpk-dl ${stale ? "primary" : ""}" data-id="${p.id}">${stale ? "⟳ Update" : "⬇ Download"}</button>` : "";
     return `<tr><td style="padding-left:${d * 18 + 4}px">${esc(p.name)} ${inst}</td><td class="num" style="${stale ? "color:#f5a623" : ""}">${p.installed_version != null ? "v" + p.installed_version : ""}</td><td class="num">${esc(p.installed_date || "")}</td><td class="num">${p.downloadable ? p.tiles : ""}</td><td class="num">${fB(p.size_bytes)}</td><td class="num">${btn}</td></tr>${kids}`;
   };
   const draw = () => {
-    box.innerHTML = `<div class="note" style="margin-top:0">Map version v${u.latest_version}${u.latest_date ? " (" + esc(u.latest_date) + ")" : ""}. ${u.installed_total} packs are installed on the device. Downloads go to <code>${esc(u.download_dir)}</code> (not to the device yet).
+    box.innerHTML = `<div class="note" style="margin-top:0">Map version v${u.latest_version}${u.latest_date ? " (" + esc(u.latest_date) + ")" : ""}. ${u.installed_total} packs are installed on the device. Downloads go to <a href="#" class="mpk-open" title="Open folder"><code>${esc(u.download_dir)}</code></a> (not to the device yet).
       <label style="float:right"><input type="checkbox" id="mpk-all" ${all ? "checked" : ""}> show all packs</label></div>
       <div id="mpk-state" class="note"></div>
       <div class="scroll" style="max-height:420px"><table><tr><th>Pack</th><th class="num">Version</th><th class="num">Installed on</th><th class="num">Tiles</th><th class="num">Size</th><th></th></tr>${u.packs.map(p => node(p, 0)).join("")}</table></div>`;
@@ -120,8 +120,9 @@ async function mapPacks(key) {
     const p = s.bytes_total ? Math.min(100, Math.round(s.bytes_done / s.bytes_total * 100)) : 0;
     if (s.running) el.innerHTML = `<b>Downloading ${esc(s.pack_name)} (v${s.version}): ${p}%</b> · tile ${s.tiles_done}/${s.tiles_total} · ${fB(s.bytes_done)} of ${fB(s.bytes_total)}<div class="bar" style="height:14px"><i style="width:${p}%;background:var(--accent)"></i></div>`;
     else if (s.error) el.textContent = "Download failed: " + s.error;
-    else if (s.finished) el.innerHTML = `<b style="color:#2ecc8f">✓ Downloaded ${esc(s.pack_name)} (v${s.version})</b>: ${s.tiles_total} tiles in <code>${esc(s.dir)}</code><div class="bar" style="height:14px"><i style="width:100%;background:var(--green)"></i></div>`;
+    else if (s.finished) el.innerHTML = `<b style="color:#2ecc8f">✓ Downloaded ${esc(s.pack_name)} (v${s.version})</b>: ${s.tiles_total} tiles in <a href="#" class="mpk-open" title="Open folder"><code>${esc(s.dir)}</code></a><div class="bar" style="height:14px"><i style="width:100%;background:var(--green)"></i></div>`;
     box.querySelectorAll(".mpk-dl").forEach(b => b.disabled = !!s.running);
+    box.querySelectorAll(".mpk-open").forEach(a => a.onclick = e => { e.preventDefault(); api("/mapdownload/open", { method: "POST" }).catch(() => {}); });
     if (s.running) setTimeout(poll, 500);
   };
   draw();
@@ -214,7 +215,7 @@ const VIEWS = {
       if (u.status !== "ok") { box.textContent = u.message; return; }
       const rows = []; const walk = (ps, pre) => ps.forEach(p => { const n = pre ? pre + " › " + p.name : p.name; if (p.installed_version != null) rows.push([n, p]); walk(p.children, n); }); walk(u.packs, "");
       const tot = rows.reduce((a, [, p]) => a + (p.routing_bytes || 0), 0);
-      box.innerHTML = `<div class="scroll" style="max-height:320px"><table><tr><th>Pack</th><th class="num">Routing tiles</th><th class="num">Routing size (v${u.latest_version})</th></tr>${rows.map(([n, p]) => `<tr><td>${esc(n)}</td><td class="num">${p.routing_tiles}</td><td class="num">${fB(p.routing_bytes)}</td></tr>`).join("")}<tr><th>Total</th><th></th><th class="num">${fB(tot)}</th></tr></table></div><div class="note">Sizes are those published for the newest map version; Wahoo's pack list also holds the routing tile ids per pack.</div>`;
+      box.innerHTML = `<div class="scroll" style="max-height:320px"><table><tr><th>Pack</th><th class="num">Installed version</th><th class="num">Routing tiles</th><th class="num">Routing size (v${u.latest_version})</th></tr>${rows.map(([n, p]) => `<tr><td>${esc(n)}</td><td class="num" style="${p.installed_version < u.latest_version ? "color:#f5a623" : ""}">v${p.installed_version}${p.installed_date ? " (" + esc(p.installed_date) + ")" : ""}</td><td class="num">${p.routing_tiles}</td><td class="num">${fB(p.routing_bytes)}</td></tr>`).join("")}<tr><th>Total</th><th></th><th></th><th class="num">${fB(tot)}</th></tr></table></div><div class="note">Sizes are those published for the newest map version; Wahoo's pack list also holds the routing tile ids per pack.</div>`;
     }).catch(e => { const b = $("#rpk"); if (b) b.textContent = "Could not load: " + e.message; });
   },
   async sensors(key, el) {

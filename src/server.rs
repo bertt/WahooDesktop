@@ -35,6 +35,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/api/sync/state", get(sync_state))
         .route("/api/devices/{key}/mappacks/{id}/download", post(start_map_download))
         .route("/api/mapdownload", get(|| async { Json(crate::mapupdates::download_state()) }))
+        .route("/api/mapdownload/open", post(open_download_dir))
         .route("/api/devices", get(devices))
         .route("/api/devices/{key}/{section}", get(section))
         .route("/api/devices/{key}/activity/{id}", get(activity))
@@ -42,6 +43,16 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/api/devices/{key}/file", get(file))
         .route("/api/devices/{key}/routes/upload", post(upload_route).layer(axum::extract::DefaultBodyLimit::max(64 * 1024 * 1024)))
         .with_state(app)
+}
+
+// Opens the map download folder (or the last download's folder inside it) in Explorer.
+async fn open_download_dir() -> Result<Json<Value>, Fail> {
+    let root = crate::mapupdates::download_dir();
+    let last = std::path::PathBuf::from(crate::mapupdates::download_state()["dir"].as_str().unwrap_or(""));
+    let dir = if !last.as_os_str().is_empty() && last.starts_with(&root) && last.is_dir() { last } else { root };
+    std::fs::create_dir_all(&dir).map_err(|e| fail(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    std::process::Command::new("explorer").arg(&dir).spawn().map_err(|e| fail(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    Ok(Json(json!({"opened": dir.display().to_string()})))
 }
 
 type Fail = (StatusCode, Json<Value>);
