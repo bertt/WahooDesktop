@@ -129,14 +129,8 @@ There is no elevation field (see [Elevation data](#elevation-data)). Example nod
 | Tile | Node | Lat, lon | Access | ec / ei | Admin | Intersection | Type | Density | Headings (raw, local edges) |
 |---|---|---|---|---|---|---|---|---|---|
 | 818659 | 0 | 52.0807100, 4.8572866 | 2047 | 3 / 0 | 2 | regular | street | 6 | 184, 56, 121 |
-| 818659 | 1 | 52.0774454, 4.8567883 | 2047 | 4 / 3 | 2 | regular | street | 5 | 242, 180, 116, 49 |
-| 818659 | 21762 | 52.2388882, 4.7863334 | 2047 | 3 / 58270 | 1 | regular | street | 5 | 70, 200, 131 |
 | 818660 | 0 | 52.0604793, 5.1115687 | 2047 | 3 / 0 | 2 | regular | street | 12 | 13, 207, 142 |
-| 818660 | 1 | 52.0779972, 5.1154650 | 2047 | 3 / 3 | 2 | regular | street | 14 | 242, 149, 28 |
-| 818660 | 58564 | 52.0660512, 5.1217001 | 2047 | 3 / 171323 | 2 | regular | street | 12 | 175, 75, 203 |
 | 818661 | 0 | 52.0827994, 5.4181685 | 2047 | 3 / 0 | 3 | regular | street | 4 | 137, 9, 201 |
-| 818661 | 1 | 52.0817915, 5.4045964 | 2047 | 4 / 3 | 3 | regular | street | 4 | 113, 175, 50, 244 |
-| 818661 | 34759 | 52.0813581, 5.4132088 | 2047 | 1 / 104596 | 3 | dead end | street | 4 | 180 |
 
 All sampled nodes have `drive_on_right` = 1, time zone index 292 and no transitions. Over a sample of about 20,000 nodes per tile: about 98% have access 2047 (all modes) and the rest are mostly 262 or 258 (pedestrian and bicycle, plus wheelchair for 262); about 64-78% are regular intersections, 12-20% false intersections and 9-16% dead ends; node type 0 (street intersection) covers about 96%, with a few gates, bollards and toll gantries; 0-7 nodes per tile have a traffic signal; edge counts are mostly 1-4. Nodes lie within their tile (818660: 52.0-52.25 N, 5.0-5.25 E).
 
@@ -170,18 +164,10 @@ Example edges (`mean elev` comes from the edge info, `name` from the text list; 
 | Tile | Edge | Name | Class / use | km/h | Length m | Surface | Access fwd / rev | Up / down slope | Weighted grade | Mean elev m | Opp edge | Forward |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 818659 | 0 | Vaartuigenlaan | residential / road | 30 | 20 | paved smooth | 2031 / 2031 | 2 / 0 | 7 | 0 | 1 | 0 |
-| 818659 | 2 | Boterbloemweide | service / footway | 12 | 98 | compacted | 258 / 258 | 0 / 1 | 6 | -2 | 1 | 0 |
-| 818660 | 0 | (none) | service / cycleway | 20 | 113 | paved smooth | 262 / 262 | 1 / 0 | 6 | 2 | 0 | 1 |
-| 818660 | 106 | Tolsteegsingel | tertiary / road | 30 | 8 | paved smooth | 2031 / 2031 | 0 / 0 | 6 | 4 | 1 | 1 |
 | 818660 | 689 | Van Zijstweg | service / road | 50 | 14 | paved smooth | 0 / 64 | 18 / 0 | 15 | 6 | 3 | 0 |
-| 818660 | 848 | Krikkelaan | residential / road | 30 | 7 | paved smooth | 262 / 2031 | 0 / 0 | 6 | 4 | 0 | 0 |
-| 818660 | 1378 | Ingenieur F E D Enschedeweg | unclassified / road | 60 | 9 | paved smooth | 2031 / 2031 | 0 / 0 | 6 | -4 | 1 | 0 |
-| 818660 | 1643 | Lekstraat | unclassified / road | 30 | 40 | paved | 2031 / 2031 | 3 / 0 | 8 | 4 | 1 | 0 |
-| 818660 | 1908 | Zinniastraat | residential / road | 30 | 19 | paved | 2031 / 2031 | 0 / 4 | 4 | 4 | 0 | 1 |
-| 818661 | 0 | Koningin Emmastraat | residential / road | 30 | 19 | paved smooth | 2031 / 2031 | 0 / 2 | 5 | 2 | 1 | 0 |
 | 818661 | 2 | Prins Clausstraat | service / footway | 25 | 42 | paved smooth | 258 / 258 | 1 / 0 | 7 | 2 | 1 | 1 |
 
-Observations: the end node of edge 0 of tile 818659 is `2/818659/2868` (level 2, same tile, node 2868). A one-way street shows as different forward and reverse access (Krikkelaan: only pedestrians and bikes in the forward direction; Van Zijstweg: only buses against the edge direction). The weighted grade follows the slopes (grade 15 for an 18 up slope, 4 for a 4 down slope), and `forward` = 0 edges point to a shape stored in the opposite direction. Over a sample of about 30,000 edges per tile: 63-65% are `service_other` class, 18-20% residential and 6-9% unclassified; about 98% have 1 lane; paved smooth is the most common surface (49-53%); mean edge length is 48-63 m with a maximum of about 2.9 km; 0.2-0.5% of the edges end in another tile; and about half have a street name.
+Observations: the end node of edge 0 of tile 818659 is `2/818659/2868` (level 2, same tile, node 2868). Access can differ per direction (Van Zijstweg: no access along the edge direction and only buses against it). The weighted grade follows the slopes (grade 15 for an 18 up slope, 4 for a 4 down slope), and `forward` = 0 edges point to a shape stored in the opposite direction. Over a sample of about 30,000 edges per tile: 63-65% are `service_other` class, 18-20% residential and 6-9% unclassified; about 98% have 1 lane; paved smooth is the most common surface (49-53%); mean edge length is 48-63 m with a maximum of about 2.9 km; 0.2-0.5% of the edges end in another tile; and about half have a street name.
 
 **Edge info (verified by `routing-export`).** A directed edge's second 8-byte word holds (low 25 bits) the offset into the edge-info section. Both directions of a road segment point to the same edge info, so a tile has about half as many segments as directed edges (tile 818660: 325,463 directed edges, 163,036 segments). Each edge-info record is:
 
@@ -198,18 +184,10 @@ Example edge-info records (the same edges as in the directed edge table; `offset
 | Tile | Edge | Offset | OSM way id | Mean elev m | Bike network | Speed limit | Names | Shape bytes | Points | First point | Last point |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 818659 | 0 | 0 | 7352421 | 0 | 0 | 30 | Vaartuigenlaan | 11 | 2 | 52.080676, 4.856999 | 52.080710, 4.857287 |
-| 818659 | 2 | 56 | 36136957 | -2 | 0 | none | Boterbloemweide | 12 | 2 | 52.079841, 4.857541 | 52.080710, 4.857287 |
-| 818660 | 0 | 0 | 4389799 | 2 | 0 | none | (none) | 16 | 3 | 52.060479, 5.111569 | 52.061451, 5.112058 |
-| 818660 | 106 | 2992 | 903083068 | 4 | 0 | 30 | Tolsteegsingel (plus one tagged name entry) | 11 | 2 | 52.084113, 5.128203 | 52.084164, 5.128276 |
 | 818660 | 689 | 18368 | 818598753 | 6 | 0 | 50 | Van Zijstweg | 14 | 3 | 52.085037, 5.108743 | 52.084939, 5.108612 |
-| 818660 | 848 | 22508 | 7058184 | 4 | 0 | 30 | Krikkelaan | 11 | 2 | 52.077873, 5.100191 | 52.077846, 5.100095 |
-| 818660 | 1378 | 35924 | 7106007 | -4 | 0 | 60 | Ingenieur F E D Enschedeweg; Ir F E D Enschedeweg | 11 | 2 | 52.000247, 5.000200 | 52.000309, 5.000287 |
-| 818660 | 1643 | 43324 | 7102645 | 4 | 0 | 30 | Lekstraat | 15 | 3 | 52.003798, 5.096278 | 52.003933, 5.095734 |
-| 818660 | 1908 | 50116 | 7102831 | 4 | 0 | 30 | Zinniastraat | 11 | 2 | 52.005582, 5.081516 | 52.005641, 5.081252 |
-| 818661 | 0 | 0 | 6987912 | 2 | 0 | 30 | Koningin Emmastraat | 12 | 2 | 52.082632, 5.418104 | 52.082799, 5.418168 |
 | 818661 | 2 | 56 | 6987909 | 2 | 0 | none | Prins Clausstraat | 14 | 3 | 52.082799, 5.418168 | 52.082919, 5.417659 |
 
-The speed limit is 0 (shown as none) where OSM has no `maxspeed`; it is the signed limit, not the routing speed in the directed edge. Edges 0 and 2 of tile 818659 both end at the node at 52.080710, 4.857287 (their shapes meet there). Most records have 2-3 shape points, since the graph is split at every intersection; the way id is the OSM way (`osm.org/way/7352421`). A name info with the tagged flag (bit 29) does not hold a street name but a tag entry in the text list (the text there starts with control bytes, here `01 01`); `routing-export` skips these. None of the sampled edges is on a bike network.
+The speed limit is 0 (shown as none) where OSM has no `maxspeed`; it is the signed limit, not the routing speed in the directed edge. Most records have 2-3 shape points, since the graph is split at every intersection; the way id is the OSM way (`osm.org/way/7352421`). A name info with the tagged flag (bit 29) does not hold a street name but a tag entry in the text list; `routing-export` skips these. None of the sampled edges is on a bike network.
 
 Street names are NUL-terminated strings at `text-list offset + name offset`. The decoded shapes start at the node coordinates and stay within the tile, and the mean elevations fit the Utrecht area (-10 to +34 m), which confirms the layout and the elevation encoding. The tiles contain all modes (cars, bicycles and pedestrians): for example 106,408 of 163,036 segments in tile 818660 are `service_other` (cycleways, footways, service roads). `routing-export` writes these as GeoJSON lines with `road_class`, `use`, `surface`, `speed_kph`, `length_m`, `mean_elevation_m`, slopes and the OSM way id. Valhalla's [`directededge.h`](https://github.com/valhalla/valhalla/blob/3.1.4/valhalla/baldr/directededge.h), [`nodeinfo.h`](https://github.com/valhalla/valhalla/blob/3.1.4/valhalla/baldr/nodeinfo.h) and [`graphtile.h`](https://github.com/valhalla/valhalla/blob/3.1.4/valhalla/baldr/graphtile.h) are the reference. Wahoo's build may differ in details.
 
