@@ -3,6 +3,7 @@ pub mod fit;
 pub mod mtp;
 pub mod server;
 pub mod views;
+#[cfg(feature = "gui")]
 pub mod main_window;
 pub mod course;
 pub mod firmware;

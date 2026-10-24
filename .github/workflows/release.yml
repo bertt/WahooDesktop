@@ -105,7 +105,7 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Build CLI
-        run: cargo build --release --bin wahoo_cli --target ${{ matrix.target }}
+        run: cargo build --release --no-default-features --bin wahoo_cli --target ${{ matrix.target }}
 
       - name: Package
         id: pkg
