@@ -64,23 +64,19 @@ Checked on three level-2 tiles around Utrecht (`2/000/818/659`, `660`, `661`, fe
 
 **Container.** A `.gph.lzma` file is an LZMA-alone stream (header `5d 00 00 80 00`, unknown-size marker, 8 MB dictionary) around a raw Valhalla graph tile. Compressed sizes are 2.6, 7.7 and 5.0 MB; decompressed 9.5, 27.5 and 16.9 MB (about 3.6x). The tile is Valhalla's native binary format (little-endian structs, memory-mapped by the router), version string `3.1.4`. The layout follows `valhalla/baldr/graphtileheader.h` of that release.
 
-**Header (272 bytes).** Verified fields:
+**Header (272 bytes).** The header holds, with example data from tile 818660:
 
-| Offset | Size | Field | Example (tile 818660) |
-|---|---|---|---|
-| 0 | 8 | bit field: graph id (level 3 bits, tile id 22 bits), quality values (density, name, speed, exit; 4 bits each, all 0 here), `has_elevation` (bit 62), `has_ext_directededge` (bit 63) | level 2, id 818660, `has_elevation` = 1 |
-| 8 | 8 | base longitude, latitude (two `float32`): south-west corner | 5.0, 52.0 |
-| 16 | 16 | version string | `3.1.4` |
-| 32 | 8 | dataset id (OSM changeset) | 137495824 (same in all three tiles) |
-| 40 | 8 | bit field: node count (21 bits), directed edge count (21), predicted speed count (21) | 117,128 nodes, 325,463 edges, 0 predicted speeds |
-| 48 | 4 | transition count (22 bits) | 0 |
-| 52 | 4 | turn lane count (21 bits) | 1,549 |
-| 96, 100, 104, 108 | 4 each | byte offsets: complex restrictions forward, reverse, edge info, text list | |
-| 112 | 4 | creation date, days since 2014-01-01 | 3501 (about 2023-08) |
-| 116 | 100 | 25 `uint32` offsets: end of each bin in the 5x5 edge-bin grid (row-major, cumulative) | |
-| 216, 220, 224 | 4 each | offsets: lane connectivity, predicted speeds, tile size | tile size = decompressed file size |
-
-Other header words (transit and restriction counts) are not decoded.
+- Graph id: level 2, tile id 818660.
+- Quality values (density, name, speed, exit): all 0.
+- Flags: `has_elevation` = 1, `has_ext_directededge` = 0.
+- Base corner (south-west): longitude 5.0, latitude 52.0.
+- Version string: `3.1.4`.
+- Dataset id (OSM changeset): 137495824, the same in all three tiles.
+- Creation date: day 3501 since 2014-01-01 (about 2023-08).
+- Counts: 117,128 nodes, 325,463 directed edges, 0 predicted speeds, 0 transitions, 1,549 turn lanes, 0 transfers, 1,339 signs, 3,609 access restrictions, 4 admins.
+- Edge bins: 25 cumulative offsets (5x5 grid), 164,872 bin entries in total.
+- Section offsets: complex restrictions (forward and reverse), edge info, text list, lane connectivity, predicted speeds.
+- Tile size: 27,457,584 bytes (the decompressed file size).
 
 **Body.** Fixed-size records follow the header back to back:
 
@@ -97,7 +93,59 @@ Other header words (transit and restriction counts) are not decoded.
 
 Observed sizes: tile 818659 has 43,524 nodes and 109,870 edges (about 2.5 edges per node), 818660 has 117,128 and 325,463, 818661 has 69,518 and 198,560. Tile 818660 covers the city of Utrecht and is the largest. The edge section is about 56-57% of each tile.
 
-Not verified: the exact record layout of the other fixed sections, and the decoding of the other directed edge bit fields.
+Not verified: the decoding of the other directed edge bit fields, and the lane connectivity records.
+
+**Other fixed records (examples).** Access restrictions (16 bytes; edge index, type, modes, value), 3 of tile 818660 and 818661:
+
+| Tile / # | Edge | Type | Modes | Value |
+|---|---|---|---|---|
+| 818660 / 0 | 32 | max height | 233 | 330 (cm) |
+| 818660 / 1804 | 124305 | hazmat | 8 | 1 |
+| 818661 / 439 | 198210 | max weight | 8 | 300 |
+
+Signs (8 bytes; edge index, type, text offset):
+
+| Tile / # | Edge | Type | Text |
+|---|---|---|---|
+| 818660 / 0 | 1576 | exit number | `10` |
+| 818660 / 669 | 68406 | guide branch (route number) | `N402` |
+| 818661 / 421 | 43083 | exit toward | `Utrecht (A27)` |
+
+Turn lanes (8 bytes; edge index, text offset; the text is a list of lane masks):
+
+| Tile / # | Edge | Lanes |
+|---|---|---|
+| 818660 / 0 | 288 | `2\|96` |
+| 818660 / 1548 | 325266 | `1024\|1` |
+| 818661 / 885 | 198190 | `8\|8\|64` |
+
+Admins (16 bytes; country and state names, ISO codes):
+
+| Tile / # | Country | State |
+|---|---|---|
+| 818659 / 1 | Nederland (NL) | Noord-Holland (NH) |
+| 818661 / 1 | Nederland (NL) | Flevoland (FL) |
+| 818661 / 2 | Nederland (NL) | Gelderland (GE) |
+
+Edge bins (8 bytes; graph id of an edge touching the grid cell):
+
+| Tile / # | Graph id |
+|---|---|
+| 818659 / 0 | 2/818659/897 |
+| 818660 / 1 | 2/818660/34195 |
+| 818660 / 2 | 2/818661/111276 (edge in the neighbouring tile) |
+
+**Complex restrictions.** Empty in all three tiles: the forward, reverse and edge-info offsets are equal, so there are no example records.
+
+**Text list (examples).** NUL-terminated strings, shared by street names, signs, turn lanes and admins. Tile 818659 holds 2,815 strings in 38,560 bytes:
+
+| Offset | Text |
+|---|---|
+| 1 | `None` |
+| 6 | `Nederland` |
+| 51 | `Vaartuigenlaan` |
+
+**Lane connectivity.** Starts at the lane-connectivity offset and runs to the end of the tile: 569,776 bytes in 818659, 1,715,736 in 818660, 1,186,896 in 818661. The record layout is not verified (the size of 818660 is not a multiple of 16), so no decoded example is given. First bytes of 818661 as 16-bit values: `2 2 3 3 8 2 2 8`.
 
 **Node info (32 bytes, from Valhalla 3.1.4 `nodeinfo.h`, decoded on all three tiles).** Each node holds its position (offsets from the tile's base corner), an access mask (modes: 1 auto, 2 pedestrian, 4 bicycle, 8 truck, 16 emergency, 32 taxi, 64 bus, 128 HOV, 256 wheelchair, 512 moped, 1024 motorcycle), the index and count of its outbound directed edges, admin and time zone indexes, intersection type (regular, false, dead end, fork), node type (street intersection, gate, bollard, toll booth, toll gantry, elevator, among others), road density, traffic signal, mode change and named flags, local edge driveability and the headings of up to 8 local edges. Road density (0-15) says how dense the road network is around the node (0 rural, 15 dense urban); Valhalla's graph builder derives it and the costing models use it to tell urban from rural areas. There is no elevation field (see [Elevation data](#elevation-data)). Example nodes (first node of each tile; `ei` = edge index, `ec` = edge count):
 
