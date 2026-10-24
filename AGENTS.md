@@ -28,7 +28,7 @@ cargo test
 
 Installer: `ISCC /DAppVersion=0.1.0 installer\wahoo-desktop.iss` (output in `dist\`). The release workflow stamps the version from the git tag into `Cargo.toml`.
 
-CLI for other platforms: `cargo build --release --no-default-features --bin wahoo_cli --target <triple>` (the default `gui` feature pulls in tao/wry and is Windows-only in practice; `main_window` is gated on it). The release workflow job `cli` builds windows/macos/linux x64+arm64 (`x86_64/aarch64-pc-windows-msvc`, `x86_64/aarch64-apple-darwin`, `x86_64/aarch64-unknown-linux-gnu`) and attaches `wahoo_cli-<version>-<platform>.zip|.tar.gz` to the release. Device access (`mtp/wpd.rs`) is Windows-only; elsewhere the CLI only has cache and internet commands.
+CLI for other platforms: `cargo build --release --no-default-features --bin wahoo_cli --target <triple>` (the default `gui` feature pulls in tao/wry and is Windows-only in practice; `main_window` is gated on it). The release workflow builds Windows installers for x64 and arm64 (`/DArch=x64|arm64 /DBinDir=<target dir>` for ISCC; output `WahooDesktop-Setup-<version>-<arch>.exe`) and CLI-only packages for macOS (`.pkg` via pkgbuild) and Linux (`.deb`/`.rpm` via nfpm) on x64 and arm64, attached to the release. Device access (`mtp/wpd.rs`) is Windows-only; other platforms use the `mtp/unsupported.rs` stub, so the CLI only has cache and internet commands.
 
 ## Map knowledge (details in `docs/MAPS.md`; reverse-engineered, not official)
 

@@ -3,6 +3,13 @@
   #define AppVersion "0.0.0"
 #endif
 
+#ifndef Arch
+  #define Arch "x64"
+#endif
+#ifndef BinDir
+  #define BinDir "..\target\release"
+#endif
+
 [Setup]
 AppId={{6B0C5B58-5E5F-4B52-9C55-3A5E8D0F7A11}
 AppName=Wahoo Desktop
@@ -13,11 +20,11 @@ DefaultGroupName=Wahoo Desktop
 UninstallDisplayIcon={app}\wahoo-desktop.exe
 SetupIconFile=..\assets\icon.ico
 OutputDir=..\dist
-OutputBaseFilename=WahooDesktop-Setup-{#AppVersion}
+OutputBaseFilename=WahooDesktop-Setup-{#AppVersion}-{#Arch}
 Compression=lzma2
 SolidCompression=yes
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed={#Arch}compatible
+ArchitecturesInstallIn64BitMode={#Arch}compatible
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 WizardStyle=modern
@@ -26,8 +33,8 @@ WizardStyle=modern
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Files]
-Source: "..\target\release\wahoo-desktop.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\target\release\wahoo_cli.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BinDir}\wahoo-desktop.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BinDir}\wahoo_cli.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]

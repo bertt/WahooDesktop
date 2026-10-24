@@ -49,7 +49,7 @@ Notes: map, routing and storage details depend on the firmware's folder layout (
 
 ## Installation
 
-**Installer (recommended).** Download `WahooDesktop-Setup-<version>.exe` from the [Releases](../../releases) page and run it. It installs per user by default (no admin rights needed), adds a Start menu entry and optionally a desktop shortcut, and includes `wahoo_cli.exe`. Requires Windows 10/11 with the WebView2 runtime (preinstalled on current Windows).
+**Installer (recommended).** Download `WahooDesktop-Setup-<version>-x64.exe` (or `-arm64.exe`) from the [Releases](../../releases) page and run it. It installs per user by default (no admin rights needed), adds a Start menu entry and optionally a desktop shortcut, and includes `wahoo_cli.exe`. Requires Windows 10/11 with the WebView2 runtime (preinstalled on current Windows).
 
 **From source.** See [Build and run](#build-and-run).
 
@@ -161,8 +161,8 @@ Full details (layout, formats, tile maths, versions, building your own maps): **
 
 The Windows setup is built with [Inno Setup](https://jrsoftware.org/isinfo.php) (`installer/wahoo-desktop.iss`). The GitHub Actions workflow `.github/workflows/release.yml` runs when a GitHub release is published: it takes the version from the tag (e.g. `v1.2.3`), stamps it into `Cargo.toml`, runs the tests, builds in release mode, builds `WahooDesktop-Setup-1.2.3.exe` and attaches it to the release. It can also be started manually (workflow_dispatch) to build an installer artifact without publishing.
 
-The same workflow also builds the standalone CLI (`wahoo_cli`) per platform and attaches `wahoo_cli-<version>-<platform>.zip` (Windows) or `.tar.gz` (macOS/Linux) to the release, for `windows-x64`, `windows-arm64`, `macos-x64`, `macos-arm64`, `linux-x64` and `linux-arm64`. The CLI is built with `cargo build --release --no-default-features --bin wahoo_cli --target <triple>`; the `gui` feature (tao/wry, on by default) is left out so no GTK/WebView libraries are needed. Talking to the device (MTP/WPD) only works on Windows; on macOS and Linux device commands report "unsupported" and the CLI only has the cache and the internet commands (cache in `~/Library/Application Support/WahooDesktop` or `~/.local/share/WahooDesktop`).
+The workflow builds a Windows installer for x64 and arm64 (`WahooDesktop-Setup-<version>-<arch>.exe`, GUI + CLI). For macOS and Linux it builds CLI-only packages for x64 and arm64: `wahoo_cli-<version>-macos-<arch>.pkg` (installs to `/usr/local/bin`) and `wahoo-cli_<version>_<arch>.deb` / `.rpm` (installs to `/usr/bin`). The CLI is built with `cargo build --release --no-default-features --bin wahoo_cli --target <triple>`; the `gui` feature (tao/wry, on by default) is left out so no GTK/WebView libraries are needed. Device access (MTP/WPD) only works on Windows; on macOS and Linux device commands report "unsupported" and the CLI only has the cache and the internet commands (cache in `~/Library/Application Support/WahooDesktop` or `~/.local/share/WahooDesktop`).
 
-To build locally: `cargo build --release`, then `ISCC /DAppVersion=0.1.1 installer\wahoo-desktop.iss` (output in `dist\`). The icon source is `assets/icon.svg`; `assets/make-icon.cjs` regenerates `icon.ico`/`icon.png`.
+To build locally: `cargo build --release`, then `ISCC /DAppVersion=0.1.2 installer\wahoo-desktop.iss` (output in `dist\`). The icon source is `assets/icon.svg`; `assets/make-icon.cjs` regenerates `icon.ico`/`icon.png`.
 
 

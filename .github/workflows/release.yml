@@ -14,7 +14,14 @@ permissions:
 
 jobs:
   windows-installer:
+    name: Windows installer ${{ matrix.arch }}
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, target: x86_64-pc-windows-msvc }
+          - { arch: arm64, target: aarch64-pc-windows-msvc }
     steps:
       - uses: actions/checkout@v4
 
@@ -36,14 +43,19 @@ jobs:
           Set-Content $f $t -NoNewline
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
 
       - name: Test
+        if: matrix.arch == 'x64'
         run: cargo test --release
 
       - name: Build
-        run: cargo build --release
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Install Inno Setup
         shell: pwsh
@@ -52,12 +64,12 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.ver.outputs.version }}" installer\wahoo-desktop.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.ver.outputs.version }}" "/DArch=${{ matrix.arch }}" "/DBinDir=..\target\${{ matrix.target }}\release" installer\wahoo-desktop.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
 
       - uses: actions/upload-artifact@v4
         with:
-          name: WahooDesktop-Setup-${{ steps.ver.outputs.version }}
+          name: WahooDesktop-Setup-${{ steps.ver.outputs.version }}-${{ matrix.arch }}
           path: dist/*.exe
 
       - name: Attach to release
@@ -65,21 +77,19 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" "dist/WahooDesktop-Setup-${{ steps.ver.outputs.version }}.exe" --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" "dist/WahooDesktop-Setup-${{ steps.ver.outputs.version }}-${{ matrix.arch }}.exe" --clobber
 
-  cli:
-    name: CLI ${{ matrix.name }}
+  cli-package:
+    name: CLI package ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { name: windows-x64, os: windows-latest, target: x86_64-pc-windows-msvc, ext: zip }
-          - { name: windows-arm64, os: windows-latest, target: aarch64-pc-windows-msvc, ext: zip }
-          - { name: macos-x64, os: macos-latest, target: x86_64-apple-darwin, ext: tar.gz }
-          - { name: macos-arm64, os: macos-latest, target: aarch64-apple-darwin, ext: tar.gz }
-          - { name: linux-x64, os: ubuntu-latest, target: x86_64-unknown-linux-gnu, ext: tar.gz }
-          - { name: linux-arm64, os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, ext: tar.gz }
+          - { name: macos-x64, os: macos-latest, target: x86_64-apple-darwin, kind: pkg }
+          - { name: macos-arm64, os: macos-latest, target: aarch64-apple-darwin, kind: pkg }
+          - { name: linux-x64, os: ubuntu-latest, target: x86_64-unknown-linux-gnu, kind: linux, goarch: amd64 }
+          - { name: linux-arm64, os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, kind: linux, goarch: arm64 }
     steps:
       - uses: actions/checkout@v4
 
@@ -107,26 +117,43 @@ jobs:
       - name: Build CLI
         run: cargo build --release --no-default-features --bin wahoo_cli --target ${{ matrix.target }}
 
-      - name: Package
-        id: pkg
+      - name: Build macOS .pkg
+        if: matrix.kind == 'pkg'
         shell: bash
         run: |
-          name="wahoo_cli-${{ steps.ver.outputs.version }}-${{ matrix.name }}"
-          mkdir "$name"
-          bin=target/${{ matrix.target }}/release/wahoo_cli
-          [ "${{ matrix.ext }}" = "zip" ] && bin="$bin.exe"
-          cp "$bin" README.md docs/CLI.md "$name/"
-          if [ "${{ matrix.ext }}" = "zip" ]; then 7z a "$name.zip" "$name" >/dev/null; else tar czf "$name.tar.gz" "$name"; fi
-          echo "file=$name.${{ matrix.ext }}" >> "$GITHUB_OUTPUT"
+          mkdir -p root/usr/local/bin dist
+          cp target/${{ matrix.target }}/release/wahoo_cli root/usr/local/bin/
+          pkgbuild --root root --identifier com.bertt.wahoo-cli --version ${{ steps.ver.outputs.version }} \
+            --install-location / "dist/wahoo_cli-${{ steps.ver.outputs.version }}-${{ matrix.name }}.pkg"
+
+      - name: Build Linux .deb and .rpm
+        if: matrix.kind == 'linux'
+        shell: bash
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          mkdir dist
+          printf '%s\n' \
+            "name: wahoo-cli" \
+            "arch: ${{ matrix.goarch }}" \
+            "platform: linux" \
+            "version: ${{ steps.ver.outputs.version }}" \
+            "maintainer: bertt" \
+            "description: Command line tool for the Wahoo ELEMNT" \
+            "homepage: https://github.com/bertt/WahooDesktop" \
+            "contents:" \
+            "  - src: target/${{ matrix.target }}/release/wahoo_cli" \
+            "    dst: /usr/bin/wahoo_cli" > nfpm.yaml
+          "$(go env GOPATH)/bin/nfpm" package -p deb -t dist/
+          "$(go env GOPATH)/bin/nfpm" package -p rpm -t dist/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: wahoo_cli-${{ matrix.name }}
-          path: ${{ steps.pkg.outputs.file }}
+          name: wahoo-cli-${{ matrix.name }}
+          path: dist/*
 
       - name: Attach to release
         if: github.event_name == 'release'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" "${{ steps.pkg.outputs.file }}" --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber
