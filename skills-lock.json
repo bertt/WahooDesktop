@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "auto-research": {
+      "source": "dzhng/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/auto-research/SKILL.md",
+      "computedHash": "425c0e46a40e9227036669c27d32c40936851381ab4cc705fd2ee843ef22189d"
+    },
+    "explore-unknowns": {
+      "source": "dzhng/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/explore-unknowns/SKILL.md",
+      "computedHash": "eb14da33d3e988bf2eed75b6a2ec0268efc765bbacd3d29e63767740f5e51173"
+    },
+    "review": {
+      "source": "dzhng/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/review/SKILL.md",
+      "computedHash": "a5fc2f1368e20ebb825041b11df7d22ab4aebd23d7a47141ae941c397a350f49"
+    },
+    "write-docs": {
+      "source": "dzhng/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/write-docs/SKILL.md",
+      "computedHash": "0157bbc32c0db158e432959d93e49ccb0c2e36ce7f16a083091ea9617748ed55"
+    },
+    "write-tests": {
+      "source": "dzhng/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/write-tests/SKILL.md",
+      "computedHash": "52bf6f95bff65597c6a2e3f417066309327b68e93e9687ed3e4a88351e9ce5e7"
+    }
+  }
+}

@@ -66,3 +66,67 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ github.event.release.tag_name }}" "dist/WahooDesktop-Setup-${{ steps.ver.outputs.version }}.exe" --clobber
+
+  cli:
+    name: CLI ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: windows-x64, os: windows-latest, target: x86_64-pc-windows-msvc, ext: zip }
+          - { name: windows-arm64, os: windows-latest, target: aarch64-pc-windows-msvc, ext: zip }
+          - { name: macos-x64, os: macos-latest, target: x86_64-apple-darwin, ext: tar.gz }
+          - { name: macos-arm64, os: macos-latest, target: aarch64-apple-darwin, ext: tar.gz }
+          - { name: linux-x64, os: ubuntu-latest, target: x86_64-unknown-linux-gnu, ext: tar.gz }
+          - { name: linux-arm64, os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, ext: tar.gz }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: ver
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "release" ]; then v='${{ github.event.release.tag_name }}'; else v='${{ inputs.version }}'; fi
+          v="${v#v}"
+          echo "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+' || { echo "Tag '$v' is not a semantic version"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp version into Cargo.toml
+        shell: bash
+        run: sed -i.bak -E '0,/^version = ".*"/s//version = "${{ steps.ver.outputs.version }}"/' Cargo.toml && rm Cargo.toml.bak
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build CLI
+        run: cargo build --release --bin wahoo_cli --target ${{ matrix.target }}
+
+      - name: Package
+        id: pkg
+        shell: bash
+        run: |
+          name="wahoo_cli-${{ steps.ver.outputs.version }}-${{ matrix.name }}"
+          mkdir "$name"
+          bin=target/${{ matrix.target }}/release/wahoo_cli
+          [ "${{ matrix.ext }}" = "zip" ] && bin="$bin.exe"
+          cp "$bin" README.md docs/CLI.md "$name/"
+          if [ "${{ matrix.ext }}" = "zip" ]; then 7z a "$name.zip" "$name" >/dev/null; else tar czf "$name.tar.gz" "$name"; fi
+          echo "file=$name.${{ matrix.ext }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wahoo_cli-${{ matrix.name }}
+          path: ${{ steps.pkg.outputs.file }}
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "${{ steps.pkg.outputs.file }}" --clobber
