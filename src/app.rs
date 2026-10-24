@@ -35,11 +35,16 @@ pub struct App {
 }
 
 pub fn cache_dir() -> PathBuf {
-    std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir)
-        .join("WahooDesktop")
-        .join("cache")
+    let base = if cfg!(windows) {
+        std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
+    } else if cfg!(target_os = "macos") {
+        std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library").join("Application Support"))
+    } else {
+        std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("share")))
+    };
+    base.unwrap_or_else(std::env::temp_dir).join("WahooDesktop").join("cache")
 }
 
 #[derive(Serialize, Deserialize, Default)]

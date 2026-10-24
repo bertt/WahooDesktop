@@ -1,4 +1,4 @@
-//! Device access. Windows only for now (native WPD API); macOS/Linux backends are planned.
+//! Device access. Windows only for now (native WPD API); on macOS/Linux a stub backend returns "unsupported" errors.
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -8,7 +8,9 @@ mod wpd;
 use wpd as backend;
 
 #[cfg(not(windows))]
-compile_error!("Only Windows is supported at the moment; macOS/Linux backends are not implemented yet.");
+mod unsupported;
+#[cfg(not(windows))]
+use unsupported as backend;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Entry {
