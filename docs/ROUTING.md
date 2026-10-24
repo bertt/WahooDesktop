@@ -114,7 +114,7 @@ Not verified: the exact record layout of the other fixed sections, and the decod
 | | 40-48 | `timezone` | time zone index |
 | | 49-52 | `intersection` | 0 regular, 1 false, 2 dead end, 3 fork (and others) |
 | | 53-56 | `type` | node type: 0 street intersection, 1 gate, 2 bollard, 3 toll booth, 9 toll gantry, 12 elevator, among others |
-| | 57-60 | `density` | relative road density 0-15 |
+| | 57-60 | `density` | relative road density 0-15: how dense the road network is around the node (0 rural, 15 dense urban); derived by Valhalla's graph builder and used by the costing models to tell urban from rural areas. In these tiles: 12-14 in central Utrecht (818660), 4-6 in the quieter 818661 |
 | | 61, 62, 63 | `traffic_signal`, `mode_change`, `named` | flags |
 | 2 (+16) | 0-20 | `transition_index` | 21 bits |
 | | 21-23 | `transition_count` | 3 bits |
