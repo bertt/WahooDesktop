@@ -99,6 +99,47 @@ Observed sizes: tile 818659 has 43,524 nodes and 109,870 edges (about 2.5 edges 
 
 Not verified: the exact record layout of the other fixed sections, and the decoding of the other directed edge bit fields.
 
+**Node info (32 bytes, from Valhalla 3.1.4 `nodeinfo.h`, decoded on all three tiles).** Four 8-byte words; bit positions count from the least significant bit:
+
+| Word (offset) | Bits | Field | Notes |
+|---|---|---|---|
+| 0 (+0) | 0-21 | `lat_offset` | 1e-6 degree from the base latitude |
+| | 22-25 | `lat_offset7` | extra 1e-7 digit |
+| | 26-47 | `lon_offset` | 1e-6 degree from the base longitude |
+| | 48-51 | `lon_offset7` | extra 1e-7 digit |
+| | 52-63 | `access` | mode bit mask: 1 auto, 2 pedestrian, 4 bicycle, 8 truck, 16 emergency, 32 taxi, 64 bus, 128 HOV, 256 wheelchair, 512 moped, 1024 motorcycle |
+| 1 (+8) | 0-20 | `edge_index` | index of the first outbound directed edge |
+| | 21-27 | `edge_count` | outbound edges on this level |
+| | 28-39 | `admin_index` | index into the tile's admin list (country, region) |
+| | 40-48 | `timezone` | time zone index |
+| | 49-52 | `intersection` | 0 regular, 1 false, 2 dead end, 3 fork (and others) |
+| | 53-56 | `type` | node type: 0 street intersection, 1 gate, 2 bollard, 3 toll booth, 9 toll gantry, 12 elevator, among others |
+| | 57-60 | `density` | relative road density 0-15 |
+| | 61, 62, 63 | `traffic_signal`, `mode_change`, `named` | flags |
+| 2 (+16) | 0-20 | `transition_index` | 21 bits |
+| | 21-23 | `transition_count` | 3 bits |
+| | 24-39 | `local_driveability` | 2 bits for each of 8 local edges |
+| | 40-42 | `local_edge_count` | stored minus 1 |
+| | 43-46 | `drive_on_right`, `tagged_access`, `private_access`, `cash_only_toll` | flags |
+| | 47-63 | spare | 0 in all nodes |
+| 3 (+24) | 0-63 | `headings` | 8 local edges, 8 bits each, degrees x 255/359 |
+
+There is no elevation field (see [Elevation data](#elevation-data)). Example nodes (first nodes of each tile and one from the middle; `ei` = edge index, `ec` = edge count):
+
+| Tile | Node | Lat, lon | Access | ec / ei | Admin | Intersection | Type | Density | Headings (raw, local edges) |
+|---|---|---|---|---|---|---|---|---|---|
+| 818659 | 0 | 52.0807100, 4.8572866 | 2047 | 3 / 0 | 2 | regular | street | 6 | 184, 56, 121 |
+| 818659 | 1 | 52.0774454, 4.8567883 | 2047 | 4 / 3 | 2 | regular | street | 5 | 242, 180, 116, 49 |
+| 818659 | 21762 | 52.2388882, 4.7863334 | 2047 | 3 / 58270 | 1 | regular | street | 5 | 70, 200, 131 |
+| 818660 | 0 | 52.0604793, 5.1115687 | 2047 | 3 / 0 | 2 | regular | street | 12 | 13, 207, 142 |
+| 818660 | 1 | 52.0779972, 5.1154650 | 2047 | 3 / 3 | 2 | regular | street | 14 | 242, 149, 28 |
+| 818660 | 58564 | 52.0660512, 5.1217001 | 2047 | 3 / 171323 | 2 | regular | street | 12 | 175, 75, 203 |
+| 818661 | 0 | 52.0827994, 5.4181685 | 2047 | 3 / 0 | 3 | regular | street | 4 | 137, 9, 201 |
+| 818661 | 1 | 52.0817915, 5.4045964 | 2047 | 4 / 3 | 3 | regular | street | 4 | 113, 175, 50, 244 |
+| 818661 | 34759 | 52.0813581, 5.4132088 | 2047 | 1 / 104596 | 3 | dead end | street | 4 | 180 |
+
+All sampled nodes have `drive_on_right` = 1, time zone index 292 and no transitions. Over a sample of about 20,000 nodes per tile: about 98% have access 2047 (all modes) and the rest are mostly 262 or 258 (pedestrian and bicycle, plus wheelchair for 262); about 64-78% are regular intersections, 12-20% false intersections and 9-16% dead ends; node type 0 (street intersection) covers about 96%, with a few gates, bollards and toll gantries; 0-7 nodes per tile have a traffic signal; edge counts are mostly 1-4. Nodes lie within their tile (818660: 52.0-52.25 N, 5.0-5.25 E).
+
 **Edge info (verified by `routing-export`).** A directed edge's second 8-byte word holds (low 25 bits) the offset into the edge-info section. Both directions of a road segment point to the same edge info, so a tile has about half as many segments as directed edges (tile 818660: 325,463 directed edges, 163,036 segments). Each edge-info record is:
 
 | Bytes | Content |
