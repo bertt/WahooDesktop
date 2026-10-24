@@ -99,32 +99,7 @@ Observed sizes: tile 818659 has 43,524 nodes and 109,870 edges (about 2.5 edges 
 
 Not verified: the exact record layout of the other fixed sections, and the decoding of the other directed edge bit fields.
 
-**Node info (32 bytes, from Valhalla 3.1.4 `nodeinfo.h`, decoded on all three tiles).** Four 8-byte words; bit positions count from the least significant bit:
-
-| Word (offset) | Bits | Field | Notes |
-|---|---|---|---|
-| 0 (+0) | 0-21 | `lat_offset` | 1e-6 degree from the base latitude |
-| | 22-25 | `lat_offset7` | extra 1e-7 digit |
-| | 26-47 | `lon_offset` | 1e-6 degree from the base longitude |
-| | 48-51 | `lon_offset7` | extra 1e-7 digit |
-| | 52-63 | `access` | mode bit mask: 1 auto, 2 pedestrian, 4 bicycle, 8 truck, 16 emergency, 32 taxi, 64 bus, 128 HOV, 256 wheelchair, 512 moped, 1024 motorcycle |
-| 1 (+8) | 0-20 | `edge_index` | index of the first outbound directed edge |
-| | 21-27 | `edge_count` | outbound edges on this level |
-| | 28-39 | `admin_index` | index into the tile's admin list (country, region) |
-| | 40-48 | `timezone` | time zone index |
-| | 49-52 | `intersection` | 0 regular, 1 false, 2 dead end, 3 fork (and others) |
-| | 53-56 | `type` | node type: 0 street intersection, 1 gate, 2 bollard, 3 toll booth, 9 toll gantry, 12 elevator, among others |
-| | 57-60 | `density` | relative road density 0-15: how dense the road network is around the node (0 rural, 15 dense urban); derived by Valhalla's graph builder and used by the costing models to tell urban from rural areas. In these tiles: 12-14 in central Utrecht (818660), 4-6 in the quieter 818661 |
-| | 61, 62, 63 | `traffic_signal`, `mode_change`, `named` | flags |
-| 2 (+16) | 0-20 | `transition_index` | 21 bits |
-| | 21-23 | `transition_count` | 3 bits |
-| | 24-39 | `local_driveability` | 2 bits for each of 8 local edges |
-| | 40-42 | `local_edge_count` | stored minus 1 |
-| | 43-46 | `drive_on_right`, `tagged_access`, `private_access`, `cash_only_toll` | flags |
-| | 47-63 | spare | 0 in all nodes |
-| 3 (+24) | 0-63 | `headings` | 8 local edges, 8 bits each, degrees x 255/359 |
-
-There is no elevation field (see [Elevation data](#elevation-data)). Example nodes (first nodes of each tile and one from the middle; `ei` = edge index, `ec` = edge count):
+**Node info (32 bytes, from Valhalla 3.1.4 `nodeinfo.h`, decoded on all three tiles).** Each node holds its position (offsets from the tile's base corner), an access mask (modes: 1 auto, 2 pedestrian, 4 bicycle, 8 truck, 16 emergency, 32 taxi, 64 bus, 128 HOV, 256 wheelchair, 512 moped, 1024 motorcycle), the index and count of its outbound directed edges, admin and time zone indexes, intersection type (regular, false, dead end, fork), node type (street intersection, gate, bollard, toll booth, toll gantry, elevator, among others), road density, traffic signal, mode change and named flags, local edge driveability and the headings of up to 8 local edges. Road density (0-15) says how dense the road network is around the node (0 rural, 15 dense urban); Valhalla's graph builder derives it and the costing models use it to tell urban from rural areas. There is no elevation field (see [Elevation data](#elevation-data)). Example nodes (first node of each tile; `ei` = edge index, `ec` = edge count):
 
 | Tile | Node | Lat, lon | Access | ec / ei | Admin | Intersection | Type | Density | Headings (raw, local edges) |
 |---|---|---|---|---|---|---|---|---|---|
@@ -134,30 +109,7 @@ There is no elevation field (see [Elevation data](#elevation-data)). Example nod
 
 All sampled nodes have `drive_on_right` = 1, time zone index 292 and no transitions. Over a sample of about 20,000 nodes per tile: about 98% have access 2047 (all modes) and the rest are mostly 262 or 258 (pedestrian and bicycle, plus wheelchair for 262); about 64-78% are regular intersections, 12-20% false intersections and 9-16% dead ends; node type 0 (street intersection) covers about 96%, with a few gates, bollards and toll gantries; 0-7 nodes per tile have a traffic signal; edge counts are mostly 1-4. Nodes lie within their tile (818660: 52.0-52.25 N, 5.0-5.25 E).
 
-**Directed edge info (48 bytes, from Valhalla 3.1.4 `directededge.h`, decoded on all three tiles).** Six 8-byte words, bit positions from the least significant bit. Only the fields read below are listed; the rest (restrictions, truck/predicted speeds, turn types, stop impact, shortcuts, local edge indexes) are not decoded:
-
-| Word (offset) | Bits | Field | Notes |
-|---|---|---|---|
-| 0 (+0) | 0-45 | `endnode` | graph id of the end node: level (3 bits), tile id (22), node index (21) |
-| | 54-60 | `opp_index` | index of the opposing edge at the end node |
-| | 61 | `forward` | 1 if the edge-info shape runs in this edge's direction |
-| | 62 | `leaves_tile` | end node is in another tile |
-| 1 (+8) | 0-24 | `edgeinfo_offset` | offset into the edge-info section (shape, names, way id, mean elevation) |
-| 2 (+16) | 0-7 | `speed` | km/h |
-| | 40-45 | `use` | 0 road, 1 ramp, 3 track, 4 driveway, 10 living street, 11 service road, 20 cycleway, 25 footway, 27 path, among others |
-| | 46-49 | `lanecount` | |
-| | 54-56 | `classification` | 0 motorway, 1 trunk, 2 primary, 3 secondary, 4 tertiary, 5 unclassified, 6 residential, 7 service/other |
-| | 57-59 | `surface` | 0 paved smooth, 1 paved, 2 paved rough, 3 compacted, 4 dirt, 5 gravel, 6 path, 7 impassable |
-| | 60, 61 | `toll`, `roundabout` | flags |
-| 3 (+24) | 0-11 | `forwardaccess` | mode mask, same bits as the node `access` |
-| | 12-23 | `reverseaccess` | access against the edge direction |
-| | 24-28, 29-33 | `max_up_slope`, `max_down_slope` | 5 bits each |
-| | 39 | `bike_network` | |
-| | 49, 50 | `tunnel`, `bridge` | flags |
-| 4 (+32) | 32-55 | `length` | metres |
-| | 56-59 | `weighted_grade` | 4 bits; 6 is level ground, higher is uphill, lower is downhill |
-| | 60-63 | `curvature` | |
-| 5 (+40) | 62, 63 | `named`, `link` | has names; ramp or turn channel |
+**Directed edge info (48 bytes, from Valhalla 3.1.4 `directededge.h`, decoded on all three tiles).** Each directed edge holds the graph id of its end node, the index of the opposing edge, a `forward` flag (1 if the edge-info shape runs in this edge's direction), a `leaves_tile` flag, the offset into the edge-info section, speed (km/h), use (road, ramp, track, driveway, living street, service road, cycleway, footway, path, among others), lane count, road class (motorway, trunk, primary, secondary, tertiary, unclassified, residential, service/other), surface (paved smooth, paved, paved rough, compacted, dirt, gravel, path, impassable), toll and roundabout flags, forward and reverse access masks (same mode bits as the node access), maximum up and down slope, bike network, tunnel and bridge flags, length (m), weighted grade (4 bits; 6 is level ground, higher is uphill, lower is downhill), curvature, and the named and link (ramp or turn channel) flags. The rest (restrictions, truck and predicted speeds, turn types, stop impact, shortcuts, local edge indexes) is not decoded.
 
 Example edges (`mean elev` comes from the edge info, `name` from the text list; access masks: 2031 = all road and path modes except emergency, 262 = pedestrian, bicycle and wheelchair, 258 = pedestrian and wheelchair, 64 = bus):
 
@@ -169,15 +121,7 @@ Example edges (`mean elev` comes from the edge info, `name` from the text list; 
 
 Observations: the end node of edge 0 of tile 818659 is `2/818659/2868` (level 2, same tile, node 2868). Access can differ per direction (Van Zijstweg: no access along the edge direction and only buses against it). The weighted grade follows the slopes (grade 15 for an 18 up slope, 4 for a 4 down slope), and `forward` = 0 edges point to a shape stored in the opposite direction. Over a sample of about 30,000 edges per tile: 63-65% are `service_other` class, 18-20% residential and 6-9% unclassified; about 98% have 1 lane; paved smooth is the most common surface (49-53%); mean edge length is 48-63 m with a maximum of about 2.9 km; 0.2-0.5% of the edges end in another tile; and about half have a street name.
 
-**Edge info (verified by `routing-export`).** A directed edge's second 8-byte word holds (low 25 bits) the offset into the edge-info section. Both directions of a road segment point to the same edge info, so a tile has about half as many segments as directed edges (tile 818660: 325,463 directed edges, 163,036 segments). Each edge-info record is:
-
-| Bytes | Content |
-|---|---|
-| 4 | OSM way id (low 32 bits) |
-| 4 | mean elevation (12 bits, 2 m steps, `value * 2 - 500` metres), bike network (4), speed limit (8), way id bits 32-39 (8) |
-| 4 | name count (4 bits), encoded shape size (16), way id bits 40-47 (8), extra way id bytes (2) |
-| 4 x names | name info: offset into the text list (24 bits), flags (route number, tagged) |
-| shape size | the shape: zig-zag varints (7 bits per byte, high bit = continues), `lat, lon` deltas in 1e-6 degree, starting from 0,0 |
+**Edge info (verified by `routing-export`).** A directed edge's second 8-byte word holds (low 25 bits) the offset into the edge-info section. Both directions of a road segment point to the same edge info, so a tile has about half as many segments as directed edges (tile 818660: 325,463 directed edges, 163,036 segments). Each edge-info record holds the OSM way id, the mean elevation (12 bits, 2 m steps, `value * 2 - 500` metres), the bike network, the speed limit, the name count and encoded shape size, then one name info per name (offset into the text list, flags such as route number and tagged) and the shape itself: zig-zag varints (7 bits per byte, high bit = continues) of `lat, lon` deltas in 1e-6 degree, starting from 0,0.
 
 Example edge-info records (the same edges as in the directed edge table; `offset` is the byte offset in the edge-info section, `names` are read from the text list; the record is 12 bytes, plus 4 per name, plus the shape bytes):
 
