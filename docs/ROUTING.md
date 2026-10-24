@@ -140,6 +140,49 @@ There is no elevation field (see [Elevation data](#elevation-data)). Example nod
 
 All sampled nodes have `drive_on_right` = 1, time zone index 292 and no transitions. Over a sample of about 20,000 nodes per tile: about 98% have access 2047 (all modes) and the rest are mostly 262 or 258 (pedestrian and bicycle, plus wheelchair for 262); about 64-78% are regular intersections, 12-20% false intersections and 9-16% dead ends; node type 0 (street intersection) covers about 96%, with a few gates, bollards and toll gantries; 0-7 nodes per tile have a traffic signal; edge counts are mostly 1-4. Nodes lie within their tile (818660: 52.0-52.25 N, 5.0-5.25 E).
 
+**Directed edge info (48 bytes, from Valhalla 3.1.4 `directededge.h`, decoded on all three tiles).** Six 8-byte words, bit positions from the least significant bit. Only the fields read below are listed; the rest (restrictions, truck/predicted speeds, turn types, stop impact, shortcuts, local edge indexes) are not decoded:
+
+| Word (offset) | Bits | Field | Notes |
+|---|---|---|---|
+| 0 (+0) | 0-45 | `endnode` | graph id of the end node: level (3 bits), tile id (22), node index (21) |
+| | 54-60 | `opp_index` | index of the opposing edge at the end node |
+| | 61 | `forward` | 1 if the edge-info shape runs in this edge's direction |
+| | 62 | `leaves_tile` | end node is in another tile |
+| 1 (+8) | 0-24 | `edgeinfo_offset` | offset into the edge-info section (shape, names, way id, mean elevation) |
+| 2 (+16) | 0-7 | `speed` | km/h |
+| | 40-45 | `use` | 0 road, 1 ramp, 3 track, 4 driveway, 10 living street, 11 service road, 20 cycleway, 25 footway, 27 path, among others |
+| | 46-49 | `lanecount` | |
+| | 54-56 | `classification` | 0 motorway, 1 trunk, 2 primary, 3 secondary, 4 tertiary, 5 unclassified, 6 residential, 7 service/other |
+| | 57-59 | `surface` | 0 paved smooth, 1 paved, 2 paved rough, 3 compacted, 4 dirt, 5 gravel, 6 path, 7 impassable |
+| | 60, 61 | `toll`, `roundabout` | flags |
+| 3 (+24) | 0-11 | `forwardaccess` | mode mask, same bits as the node `access` |
+| | 12-23 | `reverseaccess` | access against the edge direction |
+| | 24-28, 29-33 | `max_up_slope`, `max_down_slope` | 5 bits each |
+| | 39 | `bike_network` | |
+| | 49, 50 | `tunnel`, `bridge` | flags |
+| 4 (+32) | 32-55 | `length` | metres |
+| | 56-59 | `weighted_grade` | 4 bits; 6 is level ground, higher is uphill, lower is downhill |
+| | 60-63 | `curvature` | |
+| 5 (+40) | 62, 63 | `named`, `link` | has names; ramp or turn channel |
+
+Example edges (`mean elev` comes from the edge info, `name` from the text list; access masks: 2031 = all road and path modes except emergency, 262 = pedestrian, bicycle and wheelchair, 258 = pedestrian and wheelchair, 64 = bus):
+
+| Tile | Edge | Name | Class / use | km/h | Length m | Surface | Access fwd / rev | Up / down slope | Weighted grade | Mean elev m | Opp edge | Forward |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 818659 | 0 | Vaartuigenlaan | residential / road | 30 | 20 | paved smooth | 2031 / 2031 | 2 / 0 | 7 | 0 | 1 | 0 |
+| 818659 | 2 | Boterbloemweide | service / footway | 12 | 98 | compacted | 258 / 258 | 0 / 1 | 6 | -2 | 1 | 0 |
+| 818660 | 0 | (none) | service / cycleway | 20 | 113 | paved smooth | 262 / 262 | 1 / 0 | 6 | 2 | 0 | 1 |
+| 818660 | 106 | Tolsteegsingel | tertiary / road | 30 | 8 | paved smooth | 2031 / 2031 | 0 / 0 | 6 | 4 | 1 | 1 |
+| 818660 | 689 | Van Zijstweg | service / road | 50 | 14 | paved smooth | 0 / 64 | 18 / 0 | 15 | 6 | 3 | 0 |
+| 818660 | 848 | Krikkelaan | residential / road | 30 | 7 | paved smooth | 262 / 2031 | 0 / 0 | 6 | 4 | 0 | 0 |
+| 818660 | 1378 | Ingenieur F E D Enschedeweg | unclassified / road | 60 | 9 | paved smooth | 2031 / 2031 | 0 / 0 | 6 | -4 | 1 | 0 |
+| 818660 | 1643 | Lekstraat | unclassified / road | 30 | 40 | paved | 2031 / 2031 | 3 / 0 | 8 | 4 | 1 | 0 |
+| 818660 | 1908 | Zinniastraat | residential / road | 30 | 19 | paved | 2031 / 2031 | 0 / 4 | 4 | 4 | 0 | 1 |
+| 818661 | 0 | Koningin Emmastraat | residential / road | 30 | 19 | paved smooth | 2031 / 2031 | 0 / 2 | 5 | 2 | 1 | 0 |
+| 818661 | 2 | Prins Clausstraat | service / footway | 25 | 42 | paved smooth | 258 / 258 | 1 / 0 | 7 | 2 | 1 | 1 |
+
+Observations: the end node of edge 0 of tile 818659 is `2/818659/2868` (level 2, same tile, node 2868). A one-way street shows as different forward and reverse access (Krikkelaan: only pedestrians and bikes in the forward direction; Van Zijstweg: only buses against the edge direction). The weighted grade follows the slopes (grade 15 for an 18 up slope, 4 for a 4 down slope), and `forward` = 0 edges point to a shape stored in the opposite direction. Over a sample of about 30,000 edges per tile: 63-65% are `service_other` class, 18-20% residential and 6-9% unclassified; about 98% have 1 lane; paved smooth is the most common surface (49-53%); mean edge length is 48-63 m with a maximum of about 2.9 km; 0.2-0.5% of the edges end in another tile; and about half have a street name.
+
 **Edge info (verified by `routing-export`).** A directed edge's second 8-byte word holds (low 25 bits) the offset into the edge-info section. Both directions of a road segment point to the same edge info, so a tile has about half as many segments as directed edges (tile 818660: 325,463 directed edges, 163,036 segments). Each edge-info record is:
 
 | Bytes | Content |
