@@ -49,11 +49,43 @@ Notes: map, routing and storage details depend on the firmware's folder layout (
 
 ## Installation
 
-**Installer (recommended).** Download `WahooDesktop-Setup-<version>-x64.exe` (or `-arm64.exe`) from the [Releases](../../releases) page and run it. It installs per user by default (no admin rights needed), adds a Start menu entry and optionally a desktop shortcut, and includes `wahoo_cli.exe`. Requires Windows 10/11 with the WebView2 runtime (preinstalled on current Windows).
+Download the file for your system from the [Releases](../../releases) page (replace `<version>` with the release, e.g. `0.1.2`). Only Windows has the desktop app and USB access to the ELEMNT; macOS and Linux get the command line tool `wahoo_cli` only (no device access: it reads the cache, shows map/firmware updates, etc.).
 
-**From source.** See [Build and run](#build-and-run).
+### Windows (desktop app + CLI)
 
-**Using it.** Connect the ELEMNT with a data cable, switch it on, start Wahoo Desktop and click **Sync device**.
+Run `WahooDesktop-Setup-<version>-x64.exe` (Intel/AMD) or `WahooDesktop-Setup-<version>-arm64.exe` (ARM). It installs per user by default (no admin rights needed), adds a Start menu entry and optionally a desktop shortcut, and includes `wahoo_cli.exe`. Requires Windows 10/11 with the WebView2 runtime (preinstalled on current Windows). Silent install:
+
+```powershell
+.\WahooDesktop-Setup-<version>-x64.exe /VERYSILENT
+```
+
+### macOS (CLI only)
+
+```bash
+# Apple silicon: macos-arm64, Intel: macos-x64
+sudo installer -pkg wahoo_cli-<version>-macos-arm64.pkg -target /
+wahoo_cli --help
+```
+
+The package is not signed. If macOS blocks it, allow it under System Settings > Privacy & Security, or remove the quarantine flag first: `xattr -d com.apple.quarantine wahoo_cli-<version>-macos-arm64.pkg`.
+
+### Linux (CLI only)
+
+```bash
+# Debian/Ubuntu (amd64 or arm64)
+sudo apt install ./wahoo-cli_<version>_amd64.deb
+
+# Fedora/RHEL/openSUSE (x86_64 or aarch64)
+sudo dnf install ./wahoo-cli-<version>-1.x86_64.rpm
+
+wahoo_cli --help
+```
+
+### From source
+
+See [Build and run](#build-and-run).
+
+**Using the desktop app (Windows).** Connect the ELEMNT with a data cable, switch it on, start Wahoo Desktop and click **Sync device**.
 
 ## Features
 
