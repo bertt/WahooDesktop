@@ -28,6 +28,8 @@ cargo test
 
 Installer: `ISCC /DAppVersion=0.1.0 installer\wahoo-desktop.iss` (output in `dist\`). The release workflow stamps the version from the git tag into `Cargo.toml`.
 
+CLI for other platforms: `cargo build --release --no-default-features --bin wahoo_cli --target <triple>` (the default `gui` feature pulls in tao/wry and is Windows-only in practice; `main_window` is gated on it). The release workflow job `cli` builds windows/macos/linux x64+arm64 (`x86_64/aarch64-pc-windows-msvc`, `x86_64/aarch64-apple-darwin`, `x86_64/aarch64-unknown-linux-gnu`) and attaches `wahoo_cli-<version>-<platform>.zip|.tar.gz` to the release. Device access (`mtp/wpd.rs`) is Windows-only; elsewhere the CLI only has cache and internet commands.
+
 ## Map knowledge (details in `docs/MAPS.md`; reverse-engineered, not official)
 
 - On device: `maps/tiles/8/<x>/<y>.map.lzma` (zoom-8 slippy tiles, always z=8), a zero-byte version marker `<y>.map.lzma.<version>` next to each, `maps/tilepack-versions.json` (`[{"<pack id>": <version>}]`, versions are per tile pack, not per tile), `maps/tiles_md5`, `maps/routing_md5`, `maps/temp/z8x<x>y<y>.map` (decompressed render copy; leftovers can be deleted), `maps/routing/<level>/.../*.gph.lzma` (Valhalla graph) and `maps/routing/routing-config.json`.

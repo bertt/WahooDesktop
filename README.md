@@ -161,6 +161,8 @@ Full details (layout, formats, tile maths, versions, building your own maps): **
 
 The Windows setup is built with [Inno Setup](https://jrsoftware.org/isinfo.php) (`installer/wahoo-desktop.iss`). The GitHub Actions workflow `.github/workflows/release.yml` runs when a GitHub release is published: it takes the version from the tag (e.g. `v1.2.3`), stamps it into `Cargo.toml`, runs the tests, builds in release mode, builds `WahooDesktop-Setup-1.2.3.exe` and attaches it to the release. It can also be started manually (workflow_dispatch) to build an installer artifact without publishing.
 
+The same workflow also builds the standalone CLI (`wahoo_cli`) per platform and attaches `wahoo_cli-<version>-<platform>.zip` (Windows) or `.tar.gz` (macOS/Linux) to the release, for `windows-x64`, `windows-arm64`, `macos-x64`, `macos-arm64`, `linux-x64` and `linux-arm64`. The CLI is built with `cargo build --release --no-default-features --bin wahoo_cli --target <triple>`; the `gui` feature (tao/wry, on by default) is left out so no GTK/WebView libraries are needed. Talking to the device (MTP/WPD) only works on Windows; on macOS and Linux the CLI reads the cache and the internet commands.
+
 To build locally: `cargo build --release`, then `ISCC /DAppVersion=0.1.1 installer\wahoo-desktop.iss` (output in `dist\`). The icon source is `assets/icon.svg`; `assets/make-icon.cjs` regenerates `icon.ico`/`icon.png`.
 
 
