@@ -193,6 +193,24 @@ Observations: the end node of edge 0 of tile 818659 is `2/818659/2868` (level 2,
 | 4 x names | name info: offset into the text list (24 bits), flags (route number, tagged) |
 | shape size | the shape: zig-zag varints (7 bits per byte, high bit = continues), `lat, lon` deltas in 1e-6 degree, starting from 0,0 |
 
+Example edge-info records (the same edges as in the directed edge table; `offset` is the byte offset in the edge-info section, `names` are read from the text list; the record is 12 bytes, plus 4 per name, plus the shape bytes):
+
+| Tile | Edge | Offset | OSM way id | Mean elev m | Bike network | Speed limit | Names | Shape bytes | Points | First point | Last point |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 818659 | 0 | 0 | 7352421 | 0 | 0 | 30 | Vaartuigenlaan | 11 | 2 | 52.080676, 4.856999 | 52.080710, 4.857287 |
+| 818659 | 2 | 56 | 36136957 | -2 | 0 | none | Boterbloemweide | 12 | 2 | 52.079841, 4.857541 | 52.080710, 4.857287 |
+| 818660 | 0 | 0 | 4389799 | 2 | 0 | none | (none) | 16 | 3 | 52.060479, 5.111569 | 52.061451, 5.112058 |
+| 818660 | 106 | 2992 | 903083068 | 4 | 0 | 30 | Tolsteegsingel (plus one tagged name entry) | 11 | 2 | 52.084113, 5.128203 | 52.084164, 5.128276 |
+| 818660 | 689 | 18368 | 818598753 | 6 | 0 | 50 | Van Zijstweg | 14 | 3 | 52.085037, 5.108743 | 52.084939, 5.108612 |
+| 818660 | 848 | 22508 | 7058184 | 4 | 0 | 30 | Krikkelaan | 11 | 2 | 52.077873, 5.100191 | 52.077846, 5.100095 |
+| 818660 | 1378 | 35924 | 7106007 | -4 | 0 | 60 | Ingenieur F E D Enschedeweg; Ir F E D Enschedeweg | 11 | 2 | 52.000247, 5.000200 | 52.000309, 5.000287 |
+| 818660 | 1643 | 43324 | 7102645 | 4 | 0 | 30 | Lekstraat | 15 | 3 | 52.003798, 5.096278 | 52.003933, 5.095734 |
+| 818660 | 1908 | 50116 | 7102831 | 4 | 0 | 30 | Zinniastraat | 11 | 2 | 52.005582, 5.081516 | 52.005641, 5.081252 |
+| 818661 | 0 | 0 | 6987912 | 2 | 0 | 30 | Koningin Emmastraat | 12 | 2 | 52.082632, 5.418104 | 52.082799, 5.418168 |
+| 818661 | 2 | 56 | 6987909 | 2 | 0 | none | Prins Clausstraat | 14 | 3 | 52.082799, 5.418168 | 52.082919, 5.417659 |
+
+The speed limit is 0 (shown as none) where OSM has no `maxspeed`; it is the signed limit, not the routing speed in the directed edge. Edges 0 and 2 of tile 818659 both end at the node at 52.080710, 4.857287 (their shapes meet there). Most records have 2-3 shape points, since the graph is split at every intersection; the way id is the OSM way (`osm.org/way/7352421`). A name info with the tagged flag (bit 29) does not hold a street name but a tag entry in the text list (the text there starts with control bytes, here `01 01`); `routing-export` skips these. None of the sampled edges is on a bike network.
+
 Street names are NUL-terminated strings at `text-list offset + name offset`. The decoded shapes start at the node coordinates and stay within the tile, and the mean elevations fit the Utrecht area (-10 to +34 m), which confirms the layout and the elevation encoding. The tiles contain all modes (cars, bicycles and pedestrians): for example 106,408 of 163,036 segments in tile 818660 are `service_other` (cycleways, footways, service roads). `routing-export` writes these as GeoJSON lines with `road_class`, `use`, `surface`, `speed_kph`, `length_m`, `mean_elevation_m`, slopes and the OSM way id. Valhalla's [`directededge.h`](https://github.com/valhalla/valhalla/blob/3.1.4/valhalla/baldr/directededge.h), [`nodeinfo.h`](https://github.com/valhalla/valhalla/blob/3.1.4/valhalla/baldr/nodeinfo.h) and [`graphtile.h`](https://github.com/valhalla/valhalla/blob/3.1.4/valhalla/baldr/graphtile.h) are the reference. Wahoo's build may differ in details.
 
 ## Routing data per map pack (CDN)
