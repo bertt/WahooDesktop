@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use serde_json::{Value, json};
 use std::sync::Arc;
-use wahoo_desktop::{app::App, mtp, views};
+use wahoo_desktop::{app::App, mtp, packinstall, views};
 
 #[derive(Parser)]
 #[command(name = "wahoo_cli", about = "Inspect a Wahoo ELEMNT connected over USB", version)]
@@ -70,6 +70,28 @@ enum Cmd {
         #[arg(long)]
         apply: bool,
     },
+    /// Install a map pack on the device in the given version (new pack or switch version); dry run unless `--apply`
+    InstallPack {
+        /// Pack id or name, e.g. 156 or Netherlands
+        pack: String,
+        /// Map version to install (higher or lower than the installed one)
+        #[arg(long)]
+        version: u32,
+        /// Actually write to the device (without it only a plan is printed)
+        #[arg(long)]
+        apply: bool,
+    },
+    /// Remove an installed map pack (its tiles, markers and entry in tilepack-versions.json); dry run unless `--apply`
+    RemovePack {
+        pack: String,
+        #[arg(long)]
+        apply: bool,
+    },
+    /// Delete leftover render copies in maps/temp (frees space; the device recreates them when needed); dry run unless `--apply`
+    CleanMaps {
+        #[arg(long)]
+        apply: bool,
+    },
     /// Valhalla routing data on the device: graph tiles per level, checksums and service config
     Routing,
     /// Export a Valhalla graph tile (.gph.lzma, .gph or a tile id such as 818660 from the cache) to GeoJSON
@@ -103,6 +125,54 @@ enum Cmd {
         #[arg(default_value = "")]
         prefix: String,
     },
+}
+
+/// Prints the plan of a pack install/remove; with `apply` runs it, shows progress and re-syncs the cache afterwards.
+fn pack_job(app: &Arc<App>, d: &wahoo_desktop::app::DeviceData, cli: &Cli, pack: &str, target: packinstall::Target, apply: bool) -> Result<(), String> {
+    let inp = packinstall::Inputs::new(&d.tilepacks, &d.manifest);
+    let plan = packinstall::plan(&inp, pack, target)?;
+    let p = plan.to_json();
+    if !cli.json {
+        let c = &p["counts"];
+        println!("{} {} (id {}): {} -> {}", p["action"].as_str().unwrap_or(""), p["pack_name"].as_str().unwrap_or(""), p["pack_id"], p["from_version"], if p["to_version"].is_null() { "removed".into() } else { format!("v{}", p["to_version"]) });
+        println!("  tiles: {} new, {} replaced, {} unchanged, {} removed, {} shared (kept)", c["write"], c["replace"], c["skip"], c["remove"], c["kept_shared"]);
+        println!("  download {}, device change {}, about {} min, free on device {}", bytes(p["download_bytes"].as_u64().unwrap_or(0)), p["net_bytes"], p["estimated_seconds"].as_u64().unwrap_or(0).div_ceil(60), bytes(p["free_bytes"].as_u64().unwrap_or(0)));
+        for w in p["warnings"].as_array().into_iter().flatten() {
+            println!("  warning: {}", w.as_str().unwrap_or(""));
+        }
+    }
+    if !apply {
+        if cli.json {
+            print_json(&p);
+        } else {
+            println!("Dry run: nothing written. Add --apply to do it (keep the USB cable connected; restart the device afterwards).");
+        }
+        return Ok(());
+    }
+    packinstall::start(&inp, pack, target, false)?;
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let s = packinstall::state();
+        if !cli.json {
+            eprint!("\r{}: tile {}/{} {}   ", s["pack_name"].as_str().unwrap_or(""), s["tiles_done"], s["tiles_total"], s["current"].as_str().unwrap_or(""));
+        }
+        if s["running"] == false {
+            eprintln!();
+            if let Some(e) = s["error"].as_str() {
+                return Err(e.to_string());
+            }
+            app.run_sync();
+            if cli.json {
+                print_json(&s);
+            } else {
+                println!("Done: {} written, {} replaced, {} removed, {} unchanged. Cache synced; restart the ELEMNT to use the maps.", s["written"], s["replaced"], s["removed"], s["skipped"]);
+                if let Some(b) = s["backup"].as_str() {
+                    println!("Backup of tilepack-versions.json: {b}");
+                }
+            }
+            return Ok(());
+        }
+    }
 }
 
 fn bytes(n: u64) -> String {
@@ -311,6 +381,28 @@ fn run(cli: Cli) -> Result<(), String> {
                     }
                 }
                 walk(&r["packs"], 0, *all);
+            }
+            return Ok(());
+        }
+        Cmd::InstallPack { pack, version, apply } => return pack_job(&app, &d, &cli, pack, packinstall::Target::Version(*version), *apply),
+        Cmd::RemovePack { pack, apply } => return pack_job(&app, &d, &cli, pack, packinstall::Target::Remove, *apply),
+        Cmd::CleanMaps { apply } => {
+            let files: Vec<_> = d.manifest.entries.iter().filter(|e| !e.dir && e.path.starts_with("maps/temp/")).collect();
+            let total: u64 = files.iter().map(|e| e.size).sum();
+            if !*apply {
+                if cli.json {
+                    print_json(&json!({"files": files.len(), "bytes": total, "applied": false}));
+                } else {
+                    println!("maps/temp: {} leftover file(s), {}. Dry run: nothing deleted. Add --apply to delete them.", files.len(), bytes(total));
+                }
+                return Ok(());
+            }
+            let (n, freed) = packinstall::clean_temp(&d.manifest, false)?;
+            app.run_sync();
+            if cli.json {
+                print_json(&json!({"deleted": n, "bytes": freed, "applied": true}));
+            } else {
+                println!("Deleted {n} file(s), {} freed. Cache synced.", bytes(freed));
             }
             return Ok(());
         }

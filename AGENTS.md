@@ -26,7 +26,7 @@ target\release\wahoo-desktop.exe
 cargo test
 ```
 
-Installer: `ISCC /DAppVersion=0.1.0 installer\wahoo-desktop.iss` (output in `dist\`). The release workflow stamps the version from the git tag into `Cargo.toml`.
+Installer: `ISCC /DAppVersion=0.1.3 installer\wahoo-desktop.iss` (output in `dist\`). The release workflow stamps the version from the git tag into `Cargo.toml`.
 
 CLI for other platforms: `cargo build --release --no-default-features --bin wahoo_cli --target <triple>` (the default `gui` feature pulls in tao/wry and is Windows-only in practice; `main_window` is gated on it). The release workflow builds Windows installers for x64 and arm64 (`/DArch=x64|arm64 /DBinDir=<target dir>` for ISCC; output `WahooDesktop-Setup-<version>-<arch>.exe`) and CLI-only packages for macOS (`.pkg` via pkgbuild) and Linux (`.deb`/`.rpm` via nfpm) on x64 and arm64, attached to the release. Device access (`mtp/wpd.rs`) is Windows-only; other platforms use the `mtp/unsupported.rs` stub, so the CLI only has cache and internet commands.
 
@@ -41,7 +41,7 @@ CLI for other platforms: `cargo build --release --no-default-features --bin waho
 - Pack list JSON: `version`, `created_date`, `tile_packs` nested via `sub_packs`; each pack has `id`, `name`, `tile_sets` (`zoom`, `tile_coordinates` `[x, y]`). Pack ids in `tilepack-versions.json` resolve through it.
 - Update check: pack level compares installed version vs newest; tile level does a `HEAD` and compares size with the device file. Tile dates in the UI come from file modification times (indicative only).
 - Firmware manifests: `https://bolt.wahoofitness.com/boltapp/version.json-<model>` (`bolt`, `bolt2`, `roam`, `roam2`, `ace`).
-- Installing a tile (not implemented): keep the original, rename new tile into place, recreate the marker with the previous version (or `18`), delete the `maps/temp` copy, verify size. Use USB, not Bluetooth (too slow). Always back up the original tile.
+- Installing/removing a pack (implemented in `packinstall.rs`, GUI Maps tab, `install-pack`/`remove-pack`): plan first, then tile by tile (download+validate, replace or write new tile, read back, delete `maps/temp` copy, set marker), stop at the first error, restore the previous tile on a failed replace, never remove tiles shared with another installed pack, and only after all tiles succeeded patch `maps/tilepack-versions.json` (local backup in `%LOCALAPPDATA%\WahooDesktop\maps\backup`). `tiles_md5` and routing data are not touched. Use USB, not Bluetooth (too slow).
 - `tools/geojson.js [out.geojson] [versions]` (Node 18+) builds a GeoJSON of the tile grid with CDN links; output is git-ignored (`*.geojson`).
 
 ## CLI (`wahoo_cli`, details in `docs/CLI.md`)
@@ -50,7 +50,7 @@ CLI for other platforms: `cargo build --release --no-default-features --bin waho
 - Flow: connect the ELEMNT, run `sync` once (mirrors the device to `%LOCALAPPDATA%\WahooDesktop\cache`, shared with the desktop app); read commands work from the cache, offline and instantly. Never sync from the CLI and the desktop app at the same time.
 - Talk to the device: `status`, `sync`, `add-route <file.gpx|file.fit>` (write action), `pull <device path> <local file>`, `ls [prefix]`.
 - Cache-only: `info`, `battery`, `storage`, `maps`, `routing`, `sensors`, `routes`, `plans`, `alerts`, `history [-n <count>]` (default 20), `activity <id>` (id from `history`; quote ids with spaces), `stats`, `debug`.
-- Need internet: `firmware` (manifest check), `map-updates [--tile x/y]`, `map-packs [--all]` (pack tree, installed marked) and `map-download <pack|id> [--version n]` (saves a pack's tiles to `%LOCALAPPDATA%\WahooDesktop\maps\<version>`; local only, not written to the device; `map-download` is a large download, confirm with the user first).
+- Need internet: `firmware` (manifest check), `map-updates [--tile x/y]`, `map-packs [--all]` (pack tree, installed marked) and `map-download <pack|id> [--version n]` (saves a pack's tiles to `%LOCALAPPDATA%\WahooDesktop\maps\<version>`; local only, not written to the device; `map-download` is a large download, confirm with the user first). Write actions to the device (dry run without `--apply`; always show the plan and confirm with the user first; one pack at a time): `install-pack <pack|id> --version <n> [--apply]` (new pack or switch version, up or down) and `remove-pack <pack|id> [--apply]`; they re-sync the cache afterwards and the device must be restarted. `clean-maps [--apply]` deletes leftover files in `maps/temp` (dry run without `--apply`).
 - Guidance for agents: start with `wahoo_cli status --json`; if not online, ask the user to connect/switch on the device instead of retrying. Sync only when fresh data is needed. Always use `--json`. Confirm with the user before `add-route`. Avoid `pull`/`ls` on large folders such as `maps/tiles`. Do not share serial numbers or `debug` output publicly.
 - `add-route` accepts up to ~10,000 GPX track points; the device may need a moment or a restart to show the route.
 
@@ -58,7 +58,7 @@ CLI for other platforms: `cargo build --release --no-default-features --bin waho
 
 - Rust edition 2024. Keep the GUI and CLI sharing logic through the library crate.
 - Windows-only code relies on the `windows` crate (WPD); keep platform-specific code inside `mtp/`.
-- The app is read-only towards the device, except adding routes (`add-route`, drag and drop .gpx/.fit). Maps are never written to the device.
+- The app is read-only towards the device, except adding routes (`add-route`, drag and drop .gpx/.fit) and installing, switching or removing map packs/tiles (`install-pack`, `remove-pack`, `clean-maps`, `install-tile`, Maps tab), which always show a plan and ask for confirmation.
 - Map and device folder layout (`maps/tiles/8/<x>/<y>.map.lzma`, `routes/`, `plans/`, `exports/`) is reverse-engineered; see `docs/MAPS.md`.
 - When changing CLI commands or features, update `README.md` and `docs/CLI.md`.
 - Only the ELEMNT BOLT2 (firmware 180.01) is verified; other models are untested.

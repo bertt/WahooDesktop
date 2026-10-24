@@ -270,7 +270,7 @@ pub fn maps(d: &DeviceData) -> Value {
         "pax_headers": {"files": pax.0, "bytes": pax.1},
         "warnings": warnings,
         "can_download": true,
-        "download_note": "Tiles are public on Wahoo's CDN (https://cdn.wahooligan.com/wahoo-maps/<version>/tiles/8/<x>/<y>.map.lzma). The ELEMNT does not fetch maps over USB; Wahoo Desktop can check for newer versions (see Map updates) but does not yet write tiles to the device.",
+        "download_note": "Tiles are public on Wahoo's CDN (https://cdn.wahooligan.com/wahoo-maps/<version>/tiles/8/<x>/<y>.map.lzma). The ELEMNT does not fetch maps over USB; Wahoo Desktop can check for newer versions (see Map updates) and install, switch or remove map packs on the device (Map packs card, `wahoo_cli install-pack` / `remove-pack`).",
         "sources": {
             "found_in": "Strings inside the firmware package staged on the device (system_update_elemnt/<build>/BoltApp, an Android APK).",
             "maps_base": "https://cdn.wahooligan.com/wahoo-maps",

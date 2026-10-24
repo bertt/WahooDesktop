@@ -185,6 +185,9 @@ impl App {
 
     /// Runs a full sync for the first reachable Wahoo. Blocking; call from spawn_blocking.
     pub fn run_sync(self: &Arc<Self>) {
+        if crate::packinstall::busy() {
+            return;
+        }
         {
             let mut s = self.sync.lock().unwrap();
             if s.running {

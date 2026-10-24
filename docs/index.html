@@ -37,7 +37,7 @@
     <p class="tag">A fast, local desktop app that reads your Wahoo ELEMNT over USB. No cloud, no phone, no account.</p>
     <a class="btn" href="https://github.com/bertt/WahooDesktop/releases/latest">Download for Windows</a>
     <a class="btn alt" href="https://github.com/bertt/WahooDesktop">View on GitHub</a>
-    <p class="note">Version 0.1.1 · Windows 10/11 · tested with ELEMNT BOLT2 · installer: <code>WahooDesktop-Setup-0.1.1.exe</code></p>
+    <p class="note">Version 0.1.3 · Windows 10/11 · tested with ELEMNT BOLT2 · installer: <code>WahooDesktop-Setup-0.1.3.exe</code></p>
   </header>
 
   <img class="hero" src="screenshots/maps.png" alt="Maps tab showing installed map tiles on a world map">
@@ -46,7 +46,7 @@
   <p>Connect your ELEMNT with a data cable, switch it on and click <b>Sync device</b>. Everything is mirrored to a local cache, so the app is instant and works offline. Built in Rust with a native window (no web server, no open ports).</p>
   <ul>
     <li><b>Device:</b> firmware, hardware, battery history and storage breakdown</li>
-    <li><b>Maps:</b> installed tiles on a map, versions, leftover files and warnings; map packs with version and date, and download of newer packs (also via <code>wahoo_cli map-packs</code> / <code>map-download</code>)</li>
+    <li><b>Maps:</b> installed tiles on a map, versions, leftover files and warnings; map packs with version and map date; install, switch version or remove a pack on the device (also via <code>wahoo_cli install-pack</code> / <code>remove-pack</code>); clean up leftover <code>maps/temp</code> files with one click (<code>clean-maps</code>)</li>
     <li><b>Routing:</b> Valhalla routing tiles on the device: tile counts per level and a coverage map</li>
     <li><b>Sensors:</b> temperature, altitude and acceleration charts from your rides</li>
     <li><b>Routes:</b> view saved routes on a map, drag and drop a <code>.gpx</code> or <code>.fit</code> to add one</li>
@@ -58,6 +58,8 @@
     <img src="screenshots/sensors.png" alt="Sensors tab">
     <img src="screenshots/statistics.png" alt="Statistics tab">
   </div>
+  <p class="note">Installing a map pack: pick a version per pack, then Install / Switch / Remove.</p>
+  <img src="screenshots/map-packs.png" alt="Installing a map pack in the Maps tab" style="max-width:100%;border-radius:8px">
 
   <h2>Install</h2>
   <p>Download the installer from the <a href="https://github.com/bertt/WahooDesktop/releases/latest">latest release</a> and run it. It installs per user (no admin rights needed). Requires the WebView2 runtime, which is preinstalled on current Windows versions. macOS and Linux are planned.</p>

@@ -287,6 +287,20 @@ impl Session {
         Some(cur)
     }
 
+    fn create_folder(&self, parent: &str, name: &str) -> Result<String> {
+        unsafe {
+            let v: IPortableDeviceValues = CoCreateInstance(&PortableDeviceValues, None, CLSCTX_INPROC_SERVER)?;
+            let (pw, nw) = (wide(parent), wide(name));
+            v.SetStringValue(&WPD_OBJECT_PARENT_ID, PCWSTR(pw.as_ptr()))?;
+            v.SetStringValue(&WPD_OBJECT_NAME, PCWSTR(nw.as_ptr()))?;
+            v.SetStringValue(&WPD_OBJECT_ORIGINAL_FILE_NAME, PCWSTR(nw.as_ptr()))?;
+            v.SetGuidValue(&WPD_OBJECT_CONTENT_TYPE, &WPD_CONTENT_TYPE_FOLDER)?;
+            let mut id = PWSTR::null();
+            self.content.CreateObjectWithPropertiesOnly(&v, &mut id)?;
+            Ok(take_pwstr(id))
+        }
+    }
+
     fn delete_object(&self, id: &str) -> Result<()> {
         unsafe {
             let c: IPortableDevicePropVariantCollection =
@@ -316,6 +330,20 @@ pub fn delete(pnp_id: &str, path: &str) -> Result<bool> {
         Some(id) => s.delete_object(&id).map(|_| true),
         None => Ok(false),
     }
+}
+
+/// Creates the folder `path` (and missing parents) when it does not exist yet.
+pub fn make_dir(pnp_id: &str, path: &str) -> Result<()> {
+    let _g = ComGuard::new();
+    let s = Session::open_with(pnp_id, 0xC000_0000)?;
+    let mut cur = s.children("DEVICE").into_iter().next().ok_or_else(|| Error::from_hresult(windows::core::HRESULT(-2147024894)))?;
+    for part in path.split('/').filter(|p| !p.is_empty()) {
+        cur = match s.child_names(&cur).into_iter().find(|(_, n)| n.eq_ignore_ascii_case(part)) {
+            Some((id, _)) => id,
+            None => s.create_folder(&cur, part)?,
+        };
+    }
+    Ok(())
 }
 
 /// Creates a new file at `path`; the parent folder must exist and the file must not.

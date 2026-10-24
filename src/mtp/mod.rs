@@ -159,6 +159,11 @@ pub fn write_new(id: &str, path: &str, data: &[u8]) -> Result<(), String> {
     backend::write_new(id, path, data).map_err(|e| e.to_string())
 }
 
+/// Creates the folder (and missing parents) when it does not exist yet.
+pub fn make_dir(id: &str, path: &str) -> Result<(), String> {
+    backend::make_dir(id, path).map_err(|e| e.to_string())
+}
+
 pub fn sanitize(s: &str) -> String {
     s.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect()
 }

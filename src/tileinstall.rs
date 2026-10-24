@@ -17,24 +17,58 @@ fn tile_path(x: u32, y: u32) -> String {
 }
 
 fn marker_versions(dev: &str, x: u32, y: u32, extra: &[u32]) -> Result<Vec<u32>, String> {
-    let mut found = Vec::new();
     let mut candidates: Vec<u32> = KNOWN_VERSIONS.iter().chain(&[20, 21, 22, 23, 24, 25]).chain(extra).copied().collect();
     candidates.sort_unstable();
     candidates.dedup();
+    existing_markers(dev, x, y, &candidates)
+}
+
+fn existing_markers(dev: &str, x: u32, y: u32, candidates: &[u32]) -> Result<Vec<u32>, String> {
+    let mut found = Vec::new();
     for v in candidates {
         if mtp::stat(dev, &format!("{}.{v}", tile_path(x, y)))?.is_some() {
-            found.push(v);
+            found.push(*v);
         }
     }
     Ok(found)
 }
 
-fn remote_size(a: &ureq::Agent, version: u32, x: u32, y: u32) -> Result<u64, String> {
-    let url = format!("{CDN}/{version}/tiles/8/{x}/{y}.map.lzma");
-    let r = a.head(&url).call().map_err(|e| format!("{url}: {e}"))?;
-    if r.status().as_u16() != 200 {
-        return Err(format!("{url}: HTTP {} (tile does not exist in v{version})", r.status().as_u16()));
+/// Deletes a tile with its version markers and `maps/temp` render copy. `marker_candidates` are the marker versions
+/// to look for (the device is not walked); returns false when the tile was not on the device.
+pub fn remove_tile(dev: &str, x: u32, y: u32, marker_candidates: &[u32]) -> Result<bool, String> {
+    let tile = tile_path(x, y);
+    let existed = mtp::delete(dev, &tile)?;
+    for m in marker_candidates {
+        mtp::delete(dev, &format!("{tile}.{m}"))?;
     }
+    mtp::delete(dev, &format!("maps/temp/z8x{x}y{y}.map"))?;
+    Ok(existed)
+}
+
+pub(crate) fn remote_size(a: &ureq::Agent, version: u32, x: u32, y: u32) -> Result<u64, String> {
+    let url = format!("{CDN}/{version}/tiles/8/{x}/{y}.map.lzma");
+    let mut last = String::new();
+    let mut resp = None;
+    for attempt in 0..4 {
+        if attempt > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(500 * attempt));
+        }
+        match a.head(&url).call() {
+            Ok(r) => {
+                let s = r.status().as_u16();
+                if s == 200 {
+                    resp = Some(r);
+                    break;
+                }
+                if s == 403 || s == 404 {
+                    return Err(format!("{url}: HTTP {s} (tile does not exist in v{version})"));
+                }
+                last = format!("{url}: HTTP {s} (CDN temporarily unavailable)");
+            }
+            Err(e) => last = format!("{url}: {e}"),
+        }
+    }
+    let r = resp.ok_or(last)?;
     r.headers().get("content-length").and_then(|v| v.to_str().ok()).and_then(|v| v.parse().ok()).ok_or_else(|| format!("{url}: no Content-Length"))
 }
 
@@ -99,41 +133,65 @@ pub fn install(x: u32, y: u32, version: u32, marker: Option<u32>, apply: bool) -
     let det = mtp::detect();
     let dev = det.mtp_devices.first().ok_or(det.message)?.id.clone();
     let a = crate::mapupdates::download_agent();
+    install_with(&dev, &a, x, y, version, marker, apply, false, None)
+}
+
+/// Like [`install`] on a known device. `allow_new` also writes tiles that are not on the device yet (the tile folder
+/// is created when needed). `candidates` limits which marker versions are looked up (default: all known versions).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn install_with(dev: &str, a: &ureq::Agent, x: u32, y: u32, version: u32, marker: Option<u32>, apply: bool, allow_new: bool, candidates: Option<&[u32]>) -> Result<Value, String> {
     let tile = tile_path(x, y);
-    let device_size = mtp::stat(&dev, &tile)?;
-    let markers = marker_versions(&dev, x, y, &[version])?;
+    let device_size = mtp::stat(dev, &tile)?;
+    let markers = match candidates {
+        Some(c) => {
+            let mut c = c.to_vec();
+            c.push(version);
+            c.sort_unstable();
+            c.dedup();
+            existing_markers(dev, x, y, &c)?
+        }
+        None => marker_versions(dev, x, y, &[version])?,
+    };
     let target_marker = marker.or_else(|| markers.first().copied()).unwrap_or(version);
     let temp = format!("maps/temp/z8x{x}y{y}.map");
-    let temp_size = mtp::stat(&dev, &temp)?;
+    let temp_size = mtp::stat(dev, &temp)?;
     let mut plan = json!({
         "tile": format!("{x}/{y}"), "version": version, "device_bytes": device_size, "device_markers": markers,
         "target_marker": target_marker, "temp_copy_bytes": temp_size, "applied": false,
     });
-    if device_size.is_none() {
+    if device_size.is_none() && !allow_new {
         return Err(format!("{tile} is not on the device; only existing tiles are replaced"));
     }
     if !apply {
-        plan["cdn_bytes"] = json!(remote_size(&a, version, x, y)?);
+        plan["cdn_bytes"] = json!(remote_size(a, version, x, y)?);
         return Ok(plan);
     }
 
-    let data = fetch(&a, version, x, y)?;
+    let data = fetch(a, version, x, y)?;
     plan["cdn_bytes"] = json!(data.len());
-    let previous = markers.iter().max_by_key(|v| **v).copied().filter(|v| *v != version);
-    // The tile is only deleted after the replacement has been downloaded and validated.
-    mtp::delete(&dev, &tile)?;
-    if let Err(e) = put_and_verify(&dev, x, y, &data) {
-        let _ = mtp::delete(&dev, &tile);
-        let restore = previous.ok_or_else(|| format!("{e}; no previous version known, tile {x}/{y} is missing on the device"))?;
-        let old = fetch(&a, restore, x, y).map_err(|e2| format!("{e}; restore of v{restore} failed: {e2}; tile is missing on the device"))?;
-        put_and_verify(&dev, x, y, &old).map_err(|e2| format!("{e}; restore of v{restore} failed: {e2}; tile is missing or damaged on the device"))?;
-        return Err(format!("{e}; the previous tile (v{restore}) was restored"));
+    if device_size.is_none() {
+        mtp::make_dir(dev, &format!("maps/tiles/8/{x}"))?;
+        if let Err(e) = put_and_verify(dev, x, y, &data) {
+            let _ = mtp::delete(dev, &tile);
+            return Err(format!("{e}; the partially written tile was removed"));
+        }
+    } else {
+        let previous = markers.iter().max_by_key(|v| **v).copied().filter(|v| *v != version);
+        // The tile is only deleted after the replacement has been downloaded and validated.
+        mtp::delete(dev, &tile)?;
+        if let Err(e) = put_and_verify(dev, x, y, &data) {
+            let _ = mtp::delete(dev, &tile);
+            let restore = previous.ok_or_else(|| format!("{e}; no previous version known, tile {x}/{y} is missing on the device"))?;
+            let old = fetch(a, restore, x, y).map_err(|e2| format!("{e}; restore of v{restore} failed: {e2}; tile is missing on the device"))?;
+            put_and_verify(dev, x, y, &old).map_err(|e2| format!("{e}; restore of v{restore} failed: {e2}; tile is missing or damaged on the device"))?;
+            return Err(format!("{e}; the previous tile (v{restore}) was restored"));
+        }
     }
-    plan["temp_copy_deleted"] = json!(mtp::delete(&dev, &temp)?);
+    plan["temp_copy_deleted"] = json!(mtp::delete(dev, &temp)?);
     for m in &markers {
-        mtp::delete(&dev, &format!("{tile}.{m}"))?;
+        mtp::delete(dev, &format!("{tile}.{m}"))?;
     }
-    mtp::write_new(&dev, &format!("{tile}.{target_marker}"), &[])?;
+    mtp::write_new(dev, &format!("{tile}.{target_marker}"), &[])?;
     plan["applied"] = json!(true);
     plan["verified_bytes"] = json!(data.len());
     Ok(plan)

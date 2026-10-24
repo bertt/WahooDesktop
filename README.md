@@ -31,6 +31,10 @@ Good starters:
 | --- | --- | --- |
 | ![Maps](docs/screenshots/maps.png) | ![Sensors](docs/screenshots/sensors.png) | ![Statistics](docs/screenshots/statistics.png) |
 
+Installing a map pack (Maps tab: pick a version per pack, then Install / Switch / Remove, with progress):
+
+![Installing a map pack](docs/screenshots/map-packs.png)
+
 ## Supported devices
 
 The app reads the device as a standard USB MTP storage device and parses its FIT files, so it should work with Wahoo ELEMNT head units that expose such storage. Only the BOLT2 has been verified.
@@ -49,7 +53,7 @@ Notes: map, routing and storage details depend on the firmware's folder layout (
 
 ## Installation
 
-Download the file for your system from the [Releases](../../releases) page (replace `<version>` with the release, e.g. `0.1.2`). Only Windows has the desktop app and USB access to the ELEMNT; macOS and Linux get the command line tool `wahoo_cli` only (no device access: it reads the cache, shows map/firmware updates, etc.).
+Download the file for your system from the [Releases](../../releases) page (replace `<version>` with the release, e.g. `0.1.3`). Only Windows has the desktop app and USB access to the ELEMNT; macOS and Linux get the command line tool `wahoo_cli` only (no device access: it reads the cache, shows map/firmware updates, etc.).
 
 ### Windows (desktop app + CLI)
 
@@ -93,7 +97,7 @@ See [Build and run](#build-and-run).
 - Overview, firmware/hardware, serial and factory info
 - Firmware update check: compares the installed version with Wahoo's public manifest (`version.json-<model>`) and shows "up to date" or "update available" (also `wahoo_cli firmware`; one of two features that use the internet, and it fails gracefully offline)
 - Map update check: resolves tile pack ids to names and compares each pack's version with the newest map version on Wahoo's public CDN (Maps tab, `wahoo_cli map-updates [--tile x/y]`)
-- Map packs: the Maps tab lists the pack tree (continent > country > region) with the packs installed on the device and a Download/Update button per pack (also `wahoo_cli map-packs`, `wahoo_cli map-download <pack>`). Tiles are saved to `%LOCALAPPDATA%\WahooDesktop\maps\<version>`; writing them to the device is the next step
+- Map packs: the Maps tab lists the pack tree (continent > country > region); installed packs show their version and the date of that map version. Per pack pick any published version (older or newer) and press Install (new pack) or Switch, or Remove an installed pack. A confirmation card shows tiles, download size, space and duration; progress and Cancel are shown, then the app syncs and asks you to restart the ELEMNT. CLI: `wahoo_cli map-packs`, `install-pack`, `remove-pack`, `map-download` (saves tiles to `%LOCALAPPDATA%\WahooDesktop\maps\<version>`, CLI only). The "leftover tile files in maps/temp" warning has a Clean up button (CLI: `clean-maps --apply`).
 - Battery history, drain and estimated runtime
 - Storage breakdown by folder
 - Maps: installed tiles on a map (colour by size/version/marker), versions, leftover temp files, warnings
@@ -119,7 +123,7 @@ Connect the ELEMNT with a data cable, switch it on and click **Sync device**. Fi
 ```
 wahoo_cli status | sync | info | battery | storage | maps | sensors
 wahoo_cli routes | add-route <file.gpx|file.fit> | plans | alerts | history -n 20 | activity <id> | stats | debug
-wahoo_cli map-updates [--tile x/y] | map-packs [--all] | map-download <pack|id> [--version n] | install-tile <x/y> --version n [--apply]
+wahoo_cli map-updates [--tile x/y] | map-packs [--all] | map-download <pack|id> [--version n] | install-pack <pack|id> --version n [--apply] | remove-pack <pack|id> [--apply] | clean-maps [--apply] | install-tile <x/y> --version n [--apply]
 wahoo_cli routing | routing-export <tile id|file> [-o out.geojson]
 wahoo_cli pull <device path> <local file>
 wahoo_cli ls [prefix]
@@ -171,7 +175,7 @@ Full details (layout, formats, tile maths, versions, building your own maps): **
 
 ## Limitations
 
-- **Maps are only written per tile (experimental).** Tiles can be downloaded from the public CDN (Maps tab or `wahoo_cli map-download`) and installed one at a time with `wahoo_cli install-tile <x/y> --version <n> --apply` (dry run without `--apply`; see [docs/MAPS.md](docs/MAPS.md)). There is no GUI for installing yet.
+- **Map packs can be installed, switched and removed (GUI and `install-pack` / `remove-pack`).** Any published map version works per pack (also older ones), one pack at a time; there is no "update all". Only the ELEMNT BOLT2 with firmware 180.01 is verified, and new-tile writing, downgrades and removal are only lightly tested on hardware: start with a small pack. Single tiles: `wahoo_cli install-tile` (see [docs/MAPS.md](docs/MAPS.md)).
 - Alerts are derived (low storage/battery, staged firmware, crash files, leftover maps); the device does not store alert definitions in readable form.
 - Live battery/sensor data over Bluetooth is not implemented.
 
@@ -195,6 +199,6 @@ The Windows setup is built with [Inno Setup](https://jrsoftware.org/isinfo.php) 
 
 The workflow builds a Windows installer for x64 and arm64 (`WahooDesktop-Setup-<version>-<arch>.exe`, GUI + CLI). For macOS and Linux it builds CLI-only packages for x64 and arm64: `wahoo_cli-<version>-macos-<arch>.pkg` (installs to `/usr/local/bin`) and `wahoo-cli_<version>_<arch>.deb` / `.rpm` (installs to `/usr/bin`). The CLI is built with `cargo build --release --no-default-features --bin wahoo_cli --target <triple>`; the `gui` feature (tao/wry, on by default) is left out so no GTK/WebView libraries are needed. Device access (MTP/WPD) only works on Windows; on macOS and Linux device commands report "unsupported" and the CLI only has the cache and the internet commands (cache in `~/Library/Application Support/WahooDesktop` or `~/.local/share/WahooDesktop`).
 
-To build locally: `cargo build --release`, then `ISCC /DAppVersion=0.1.2 installer\wahoo-desktop.iss` (output in `dist\`). The icon source is `assets/icon.svg`; `assets/make-icon.cjs` regenerates `icon.ico`/`icon.png`.
+To build locally: `cargo build --release`, then `ISCC /DAppVersion=0.1.3 installer\wahoo-desktop.iss` (output in `dist\`). The icon source is `assets/icon.svg`; `assets/make-icon.cjs` regenerates `icon.ico`/`icon.png`.
 
 

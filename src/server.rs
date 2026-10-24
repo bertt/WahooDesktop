@@ -34,6 +34,11 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/api/sync", post(start_sync))
         .route("/api/sync/state", get(sync_state))
         .route("/api/devices/{key}/mappacks/{id}/download", post(start_map_download))
+        .route("/api/devices/{key}/mappacks/{id}/plan", get(pack_plan))
+        .route("/api/devices/{key}/mappacks/{id}/install", post(pack_install))
+        .route("/api/devices/{key}/maps/clean", post(clean_maps))
+        .route("/api/mapinstall", get(|| async { Json(crate::packinstall::state()) }))
+        .route("/api/mapinstall/cancel", post(|| async { crate::packinstall::cancel(); Json(json!({"cancelling": true})) }))
         .route("/api/mapdownload", get(|| async { Json(crate::mapupdates::download_state()) }))
         .route("/api/mapdownload/open", post(open_download_dir))
         .route("/api/devices", get(devices))
@@ -82,13 +87,58 @@ async fn start_map_download(State(app): St, Path((key, id)): Path<(String, u64)>
     Ok(Json(crate::mapupdates::download_state()))
 }
 
+/// `?version=<n>` installs (or switches) the pack to that map version; `?version=remove` removes it.
+fn pack_target(q: &HashMap<String, String>) -> Result<crate::packinstall::Target, Fail> {
+    use crate::packinstall::Target;
+    match q.get("version").map(String::as_str) {
+        Some("remove") => Ok(Target::Remove),
+        Some(v) => v.parse().map(Target::Version).map_err(|_| fail(StatusCode::BAD_REQUEST, "version must be a number or 'remove'")),
+        None => Err(fail(StatusCode::BAD_REQUEST, "version is required")),
+    }
+}
+
+async fn pack_plan(State(app): St, Path((key, id)): Path<(String, u64)>, Query(q): Query<HashMap<String, String>>) -> ApiResult {
+    let d = device(&app, &key)?;
+    let target = pack_target(&q)?;
+    let plan = tokio::task::spawn_blocking(move || {
+        crate::packinstall::plan(&crate::packinstall::Inputs::new(&d.tilepacks, &d.manifest), &id.to_string(), target).map(|p| p.to_json())
+    })
+    .await
+    .unwrap()
+    .map_err(|e| fail(StatusCode::BAD_REQUEST, e))?;
+    Ok(Json(plan))
+}
+
+/// Starts installing, switching or removing one pack on the device (a sync must be done afterwards).
+async fn pack_install(State(app): St, Path((key, id)): Path<(String, u64)>, Query(q): Query<HashMap<String, String>>) -> ApiResult {
+    let d = device(&app, &key)?;
+    let target = pack_target(&q)?;
+    let sync_running = app.sync.lock().unwrap().running;
+    tokio::task::spawn_blocking(move || crate::packinstall::start(&crate::packinstall::Inputs::new(&d.tilepacks, &d.manifest), &id.to_string(), target, sync_running))
+        .await
+        .unwrap()
+        .map_err(|e| fail(StatusCode::BAD_REQUEST, e))?;
+    Ok(Json(crate::packinstall::state()))
+}
+
+/// Deletes leftover files in `maps/temp` on the device (a sync must be done afterwards).
+async fn clean_maps(State(app): St, Path(key): Path<String>) -> ApiResult {
+    let d = device(&app, &key)?;
+    let sync_running = app.sync.lock().unwrap().running;
+    let (files, bytes) = tokio::task::spawn_blocking(move || crate::packinstall::clean_temp(&d.manifest, sync_running))
+        .await
+        .unwrap()
+        .map_err(|e| fail(StatusCode::BAD_REQUEST, e))?;
+    Ok(Json(json!({"deleted": files, "bytes": bytes})))
+}
+
 async fn status() -> Json<Value> {
     let d = tokio::task::spawn_blocking(mtp::detect).await.unwrap();
     Json(serde_json::to_value(d).unwrap())
 }
 
 async fn start_sync(State(app): St) -> Json<Value> {
-    if app.sync.lock().unwrap().running {
+    if app.sync.lock().unwrap().running || crate::packinstall::busy() {
         return Json(json!({"started": false}));
     }
     let a = app.clone();

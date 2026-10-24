@@ -23,7 +23,30 @@ fn exists(a: &ureq::Agent, url: &str) -> bool {
     a.head(url).call().map(|r| r.status().as_u16() == 200).unwrap_or(false)
 }
 
+/// Pack lists never change once published, so they are kept in memory for the life of the process.
+pub(crate) fn mappack_cached(a: &ureq::Agent, version: u32) -> Option<std::sync::Arc<Value>> {
+    static CACHE: Mutex<BTreeMap<u32, std::sync::Arc<Value>>> = Mutex::new(BTreeMap::new());
+    if let Some(v) = CACHE.lock().unwrap().get(&version) {
+        return Some(v.clone());
+    }
+    let v = std::sync::Arc::new(mappack(a, version)?);
+    CACHE.lock().unwrap().insert(version, v.clone());
+    Some(v)
+}
+
 fn mappack(a: &ureq::Agent, version: u32) -> Option<Value> {
+    for attempt in 0..3 {
+        if attempt > 0 {
+            std::thread::sleep(Duration::from_millis(700));
+        }
+        if let Some(v) = mappack_once(a, version) {
+            return Some(v);
+        }
+    }
+    None
+}
+
+fn mappack_once(a: &ureq::Agent, version: u32) -> Option<Value> {
     let mut r = a.get(format!("{CDN}/{version}/mappack-gzip.json.gz")).call().ok()?;
     if r.status().as_u16() != 200 {
         return None;
@@ -53,7 +76,7 @@ fn flatten(packs: &Value, prefix: &str, out: &mut BTreeMap<u64, (String, u64)>) 
 }
 
 /// `tilepacks` is the content of maps/tilepack-versions.json: `[{"<pack id>": <version>}, ...]`.
-fn installed_packs(tilepacks: &Value) -> BTreeMap<u64, u32> {
+pub(crate) fn installed_packs(tilepacks: &Value) -> BTreeMap<u64, u32> {
     let mut installed = BTreeMap::new();
     for o in tilepacks.as_array().into_iter().flatten() {
         for (k, v) in o.as_object().into_iter().flatten() {
@@ -84,7 +107,7 @@ pub fn tile_markers(manifest: &crate::mtp::Manifest) -> BTreeMap<(u32, u32), u32
 
 /// `tilepack-versions.json` is not updated by `install-tile`, so the installed version of a pack is the oldest marker
 /// of its tiles when every tile has one; otherwise the value from the file stays.
-fn overlay_markers(installed: &mut BTreeMap<u64, u32>, list: &Value, markers: &BTreeMap<(u32, u32), u32>) {
+pub(crate) fn overlay_markers(installed: &mut BTreeMap<u64, u32>, list: &Value, markers: &BTreeMap<(u32, u32), u32>) {
     for (id, ver) in installed.iter_mut() {
         let Some(p) = find_pack(&list["tile_packs"], *id) else { continue };
         let tiles = pack_tiles(p);
@@ -95,13 +118,54 @@ fn overlay_markers(installed: &mut BTreeMap<u64, u32>, list: &Value, markers: &B
     }
 }
 
-/// Published map versions in `newest..=newest + PROBE_AHEAD`.
-fn available_versions(a: &ureq::Agent, newest: u32) -> Vec<u32> {
-    (newest..=newest + PROBE_AHEAD).filter(|v| exists(a, &format!("{CDN}/{v}/mappack-gzip.json.gz"))).collect()
+/// Map versions known to exist; others are found by probing `newest..=newest + PROBE_AHEAD`.
+const KNOWN_VERSIONS: [u32; 14] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 17, 18, 20, 21];
+
+/// Published map versions (ascending): the known ones plus a probe above the newest installed one.
+/// The result is cached for an hour (about 40 HEAD requests, done in parallel).
+pub(crate) fn all_versions(a: &ureq::Agent, newest: u32) -> Vec<u32> {
+    static CACHE: Mutex<Option<(u32, std::time::Instant, Vec<u32>)>> = Mutex::new(None);
+    static PROBE: Mutex<()> = Mutex::new(());
+    let cached = || CACHE.lock().unwrap().as_ref().filter(|(n, t, _)| *n == newest && t.elapsed() < Duration::from_secs(3600)).map(|(_, _, v)| v.clone());
+    if let Some(v) = cached() {
+        return v;
+    }
+    // Concurrent callers (several tabs ask at once) wait for the first probe instead of hammering the CDN.
+    let _probing = PROBE.lock().unwrap();
+    if let Some(v) = cached() {
+        return v;
+    }
+    let mut candidates: Vec<u32> = KNOWN_VERSIONS.iter().copied().chain(newest..=newest + PROBE_AHEAD).collect();
+    candidates.sort_unstable();
+    candidates.dedup();
+    let found = Mutex::new(Vec::new());
+    std::thread::scope(|s| {
+        for chunk in candidates.chunks(10) {
+            let found = &found;
+            s.spawn(move || {
+                for v in chunk {
+                    if exists(a, &format!("{CDN}/{v}/mappack-gzip.json.gz")) {
+                        found.lock().unwrap().push(*v);
+                    }
+                }
+            });
+        }
+    });
+    let mut found = found.into_inner().unwrap();
+    found.sort_unstable();
+    if !found.is_empty() {
+        *CACHE.lock().unwrap() = Some((newest, std::time::Instant::now(), found.clone()));
+    }
+    found
+}
+
+/// Published map versions at or above `newest`.
+pub(crate) fn available_versions(a: &ureq::Agent, newest: u32) -> Vec<u32> {
+    all_versions(a, newest).into_iter().filter(|v| *v >= newest).collect()
 }
 
 /// Zoom-8 tiles `(x, y)` that belong to this pack itself (not its sub packs).
-fn pack_tiles(p: &Value) -> Vec<(u32, u32)> {
+pub(crate) fn pack_tiles(p: &Value) -> Vec<(u32, u32)> {
     let mut out = Vec::new();
     for ts in p["tile_sets"].as_array().into_iter().flatten() {
         if ts["zoom"].as_u64() != Some(8) {
@@ -116,7 +180,7 @@ fn pack_tiles(p: &Value) -> Vec<(u32, u32)> {
     out
 }
 
-fn find_pack(packs: &Value, id: u64) -> Option<&Value> {
+pub(crate) fn find_pack(packs: &Value, id: u64) -> Option<&Value> {
     for p in packs.as_array().into_iter().flatten() {
         if p["id"].as_u64() == Some(id) {
             return Some(p);
@@ -160,13 +224,13 @@ pub fn packs(tilepacks: &Value, markers: &BTreeMap<(u32, u32), u32>) -> Value {
     let Some(latest) = available_versions(&a, newest).last().copied() else {
         return json!({"status": "error", "message": "Could not reach the Wahoo map server. Check your internet connection.", "installed_max": newest});
     };
-    let Some(list) = mappack(&a, latest) else {
+    let Some(list) = mappack_cached(&a, latest).map(|l| (*l).clone()) else {
         return json!({"status": "error", "message": format!("Could not read the pack list of map version v{latest}.")});
     };
     let mut dates: BTreeMap<u32, String> = BTreeMap::new();
     overlay_markers(&mut installed, &list, markers);
     for v in installed.values().copied().collect::<std::collections::BTreeSet<u32>>() {
-        let d = if v == latest { list["created_date"].as_str().and_then(iso_date) } else { mappack(&a, v).and_then(|j| j["created_date"].as_str().and_then(iso_date)) };
+        let d = if v == latest { list["created_date"].as_str().and_then(iso_date) } else { mappack_cached(&a, v).and_then(|j| j["created_date"].as_str().and_then(iso_date)) };
         if let Some(d) = d {
             dates.insert(v, d);
         }
@@ -176,6 +240,7 @@ pub fn packs(tilepacks: &Value, markers: &BTreeMap<(u32, u32), u32>) -> Value {
         "status": "ok",
         "latest_version": latest,
         "latest_date": list["created_date"].as_str().and_then(iso_date),
+        "versions": all_versions(&a, newest),
         "installed_total": installed.len(),
         "installed_max": newest,
         "download_dir": download_dir().join(latest.to_string()).display().to_string(),
@@ -255,7 +320,7 @@ fn download_tiles(a: &ureq::Agent, version: u32, tiles: &[(u32, u32)], dest: &st
 }
 
 /// Resolves a pack by id, full name ("Europe > Netherlands") or plain name ("Netherlands").
-fn resolve_pack(packs: &Value, query: &str) -> Result<u64, String> {
+pub(crate) fn resolve_pack(packs: &Value, query: &str) -> Result<u64, String> {
     let mut all = BTreeMap::new();
     flatten(packs, "", &mut all);
     let q = query.trim().to_lowercase();
@@ -284,7 +349,7 @@ pub fn start_download(pack: &str, version: Option<u32>, tilepacks: &Value) -> Re
             available_versions(&a, newest).last().copied().ok_or("could not reach the Wahoo map server")?
         }
     };
-    let list = mappack(&a, version).ok_or_else(|| format!("could not read the pack list of map version v{version}"))?;
+    let list = mappack_cached(&a, version).map(|l| (*l).clone()).ok_or_else(|| format!("could not read the pack list of map version v{version}"))?;
     let pack_id = resolve_pack(&list["tile_packs"], pack)?;
     let pack = find_pack(&list["tile_packs"], pack_id).ok_or_else(|| format!("pack {pack_id} does not exist in v{version}"))?;
     let tiles = pack_tiles(pack);
@@ -316,6 +381,11 @@ pub fn start_download(pack: &str, version: Option<u32>, tilepacks: &Value) -> Re
     Ok(())
 }
 
+/// Short timeouts for metadata requests (HEAD, pack lists), so a stalled connection fails and is retried quickly.
+pub(crate) fn quick_agent() -> ureq::Agent {
+    ureq::Agent::config_builder().timeout_connect(Some(Duration::from_secs(5))).timeout_global(Some(Duration::from_secs(15))).http_status_as_error(false).build().into()
+}
+
 pub(crate) fn download_agent() -> ureq::Agent {
     ureq::Agent::config_builder().timeout_connect(Some(Duration::from_secs(10))).timeout_global(Some(Duration::from_secs(900))).http_status_as_error(false).build().into()
 }
@@ -332,14 +402,14 @@ pub fn check(tilepacks: &Value, markers: &BTreeMap<(u32, u32), u32>) -> Value {
         return json!({"status": "error", "message": "Could not reach the Wahoo map server. Check your internet connection.", "installed_max": newest});
     };
     let mut versions: BTreeMap<u32, Value> = BTreeMap::new();
-    let latest_list = mappack(&a, latest).unwrap_or(Value::Null);
+    let latest_list = mappack_cached(&a, latest).map(|l| (*l).clone()).unwrap_or(Value::Null);
     overlay_markers(&mut installed, &latest_list, markers);
     let mut want: Vec<u32> = installed.values().copied().collect();
     want.push(latest);
     want.sort_unstable();
     want.dedup();
     for v in want {
-        let list = if v == latest { latest_list.clone() } else { mappack(&a, v).unwrap_or(Value::Null) };
+        let list = if v == latest { latest_list.clone() } else { mappack_cached(&a, v).map(|l| (*l).clone()).unwrap_or(Value::Null) };
         versions.insert(v, list);
     }
     let date_of = |v: u32| versions.get(&v).and_then(|j| j["created_date"].as_str()).and_then(iso_date);

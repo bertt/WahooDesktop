@@ -88,6 +88,7 @@ function openDevice(key, t = "overview", id) {
 }
 
 // ---------- map packs (download) ----------
+let lastJob = 0; // start time of the pack job whose result already triggered a sync
 async function mapPacks(key) {
   const box = $("#mpk"); if (!box) return;
   let u; try { u = await get(key, "mappacks"); } catch (e) { box.textContent = "Could not load packs: " + e.message; return; }
@@ -96,36 +97,75 @@ async function mapPacks(key) {
   const node = (p, d) => {
     if (!all && !p.installed_count) return "";
     const kids = p.children.map(c => node(c, d + 1)).join("");
-    const inst = p.installed_version != null ? `<span class="pill pill-green">installed</span>` : "";
-    const stale = p.installed_version != null && p.installed_version < u.latest_version;
-    const btn = p.downloadable ? `<button class="btn mpk-dl ${stale ? "primary" : ""}" data-id="${p.id}">${stale ? "⟳ Update" : "⬇ Download"}</button>` : "";
-    return `<tr><td style="padding-left:${d * 18 + 4}px">${esc(p.name)} ${inst}</td><td class="num" style="${stale ? "color:#f5a623" : ""}">${p.installed_version != null ? "v" + p.installed_version : ""}</td><td class="num">${esc(p.installed_date || "")}</td><td class="num">${p.downloadable ? p.tiles : ""}</td><td class="num">${fB(p.size_bytes)}</td><td class="num">${btn}</td></tr>${kids}`;
+    const has = p.installed_version != null;
+    const stale = has && p.installed_version < u.latest_version;
+    const opts = (u.versions || [u.latest_version]).slice().reverse().map(v => `<option value="${v}" ${v === (has ? p.installed_version : u.latest_version) ? "selected" : ""}>v${v}${v === p.installed_version ? " (installed)" : v === u.latest_version ? " (newest)" : ""}</option>`).join("");
+    const act = p.downloadable ? `<select class="mpk-ver" data-id="${p.id}">${opts}</select> <button class="btn mpk-inst ${has ? "" : "primary"}" data-id="${p.id}" data-name="${esc(p.name)}" data-cur="${has ? p.installed_version : ""}">${has ? "Switch" : "Install"}</button>${has ? ` <button class="btn mpk-rm" data-id="${p.id}" data-name="${esc(p.name)}">Remove</button>` : ""}` : "";
+    return `<tr><td style="padding-left:${d * 18 + 4}px">${esc(p.name)}</td><td class="num" style="${stale ? "color:#f5a623" : ""}">${has ? "v" + p.installed_version : ""}</td><td class="num">${has ? esc(p.installed_date || "") : ""}</td><td class="num">${p.downloadable ? p.tiles : ""}</td><td class="num">${fB(p.size_bytes)}</td><td class="num" style="white-space:nowrap">${act}</td></tr>${kids}`;
+  };
+  const instState = async () => {
+    const s = await api("/mapinstall").catch(() => null), el = $("#mpk-job"); if (!s || !el) return;
+    const p = s.bytes_total ? Math.min(100, Math.round(s.bytes_done / s.bytes_total * 100)) : (s.tiles_total ? Math.round(s.tiles_done / s.tiles_total * 100) : 0);
+    const what = s.action === "remove" ? "Removing" : "Installing";
+    if (!s.running && (!s.started || Date.now() / 1000 - s.finished_at > 600)) return;
+    if (s.running) {
+      const el_s = Date.now() / 1000 - s.started, eta = p > 3 ? Math.round(el_s * (100 - p) / p) : null;
+      el.innerHTML = `<b>${what} ${esc(s.pack_name)}${s.version ? " (v" + s.version + ")" : ""}: ${p}%</b> · tile ${s.tiles_done}/${s.tiles_total} ${esc(s.current)}${eta != null ? " · about " + Math.ceil(eta / 60) + " min left" : ""} <button class="btn" id="mpk-cancel">Cancel</button><div class="bar" style="height:14px"><i style="width:${p}%;background:var(--accent)"></i></div><div class="note">Keep the USB cable connected.</div>`;
+      $("#mpk-cancel").onclick = () => api("/mapinstall/cancel", { method: "POST" }).catch(() => {});
+      box.querySelectorAll(".mpk-inst,.mpk-rm").forEach(b => b.disabled = true);
+      setTimeout(instState, 700);
+    } else if (s.error) {
+      el.innerHTML = `<b style="color:#e5484d">✖ ${esc(s.pack_name)}: ${esc(s.error)}</b>${s.failed_tile ? `<br>Failed at tile ${esc(s.failed_tile)}; a failed replacement is restored automatically when possible (see the message).` : ""}`;
+      if (lastJob !== s.started) { lastJob = s.started; $("#syncBtn").click(); }
+    } else if (s.finished) {
+      el.innerHTML = `<b style="color:#2ecc8f">✓ ${esc(s.pack_name)}: ${s.written} new, ${s.replaced} replaced, ${s.removed} removed, ${s.skipped} unchanged.</b> <b>Restart the ELEMNT</b> to use the maps.${s.backup ? ` <span class="note">Backup: <code>${esc(s.backup)}</code></span>` : ""}`;
+      if (lastJob !== s.started) { lastJob = s.started; $("#syncBtn").click(); }
+    }
+  };
+  const start = async (id, name, ver, cur) => {
+    const q = ver === "remove" ? "remove" : ver, el = $("#mpk-job");
+    el.innerHTML = `<b>⏳ Calculating plan for ${esc(name)}…</b> checking tile sizes on the server, this can take up to a minute.<div class="bar" style="height:14px"><i style="width:40%;background:var(--accent);animation:mpkpulse 1.2s ease-in-out infinite alternate"></i></div>`;
+    box.querySelectorAll(".mpk-inst,.mpk-rm").forEach(b => b.disabled = true);
+    const done = () => { box.querySelectorAll(".mpk-inst,.mpk-rm").forEach(b => b.disabled = false); box.querySelectorAll(".mpk-ver").forEach(s => s.onchange()); };
+    let pl; try { pl = await api(`/devices/${encodeURIComponent(key)}/mappacks/${id}/plan?version=${q}`); } catch (e) { el.textContent = "Plan failed: " + e.message; done(); return; }
+    if (pl.nothing_to_do) { el.textContent = `${name} is already on v${ver}.`; done(); return; }
+    const c = pl.counts, min = Math.max(1, Math.ceil(pl.estimated_seconds / 60));
+    const title = ver === "remove" ? `Remove ${name} from the device` : cur ? `Switch ${name} from v${cur} to v${ver}` : `Install ${name} v${ver}`;
+    const row = (k, v) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`;
+    el.innerHTML = `<div class="card" style="margin:8px 0;border:1px solid var(--accent)"><h4 style="margin-top:0">${esc(title)}</h4>
+      <table style="max-width:460px">${row("Tiles", `${c.write} new · ${c.replace} replaced · ${c.remove} removed · ${c.skip} unchanged${c.kept_shared ? " · " + c.kept_shared + " shared (kept)" : ""}`)}${row("Download", fB(pl.download_bytes))}${row("Device space", `${pl.net_bytes < 0 ? "−" : "+"}${fB(Math.abs(pl.net_bytes))} (${fB(pl.free_bytes)} free)`)}${row("Duration", `about ${min} min`)}</table>
+      ${pl.warnings.map(w => `<div class="warn" style="margin-top:8px">⚠ ${esc(w)}</div>`).join("")}
+      ${pl.enough_space ? "" : `<div class="warn" style="margin-top:8px;color:#e5484d"><b>Not enough free space on the device.</b></div>`}
+      <div class="note">Keep the USB cable connected; restart the ELEMNT afterwards.</div>
+      <div style="margin-top:8px"><button class="btn primary" id="mpk-go" ${pl.enough_space ? "" : "disabled"}>${ver === "remove" ? "Remove pack" : cur ? "Switch now" : "Install now"}</button> <button class="btn" id="mpk-no">Cancel</button></div></div>`;
+    $("#mpk-no").onclick = () => { el.textContent = ""; done(); };
+    $("#mpk-go").onclick = async () => {
+      $("#mpk-go").disabled = true; $("#mpk-no").disabled = true;
+      try { await api(`/devices/${encodeURIComponent(key)}/mappacks/${id}/install?version=${q}`, { method: "POST" }); instState(); }
+      catch (e) { el.textContent = "Could not start: " + e.message; done(); }
+    };
   };
   const draw = () => {
-    box.innerHTML = `<div class="note" style="margin-top:0">Map version v${u.latest_version}${u.latest_date ? " (" + esc(u.latest_date) + ")" : ""}. ${u.installed_total} packs are installed on the device. Downloads go to <a href="#" class="mpk-open" title="Open folder"><code>${esc(u.download_dir)}</code></a> (not to the device yet).
-      <label style="float:right"><input type="checkbox" id="mpk-all" ${all ? "checked" : ""}> show all packs</label></div>
-      <div id="mpk-state" class="note"></div>
-      <div class="scroll" style="max-height:420px"><table><tr><th>Pack</th><th class="num">Version</th><th class="num">Installed on</th><th class="num">Tiles</th><th class="num">Size</th><th></th></tr>${u.packs.map(p => node(p, 0)).join("")}</table></div>`;
-    $("#mpk-all").onchange = e => { all = e.target.checked; draw(); };
-    box.querySelectorAll(".mpk-dl").forEach(b => b.onclick = async () => {
-      box.querySelectorAll(".mpk-dl").forEach(x => x.disabled = true);
-      $("#mpk-state").innerHTML = `<b>Starting download…</b><div class="bar"><i style="width:3%;background:var(--accent)"></i></div>`;
-      try { await api(`/devices/${encodeURIComponent(key)}/mappacks/${b.dataset.id}/download?version=${u.latest_version}`, { method: "POST" }); poll(); }
-      catch (e) { $("#mpk-state").textContent = "Could not start: " + e.message; box.querySelectorAll(".mpk-dl").forEach(x => x.disabled = false); }
-    });
-    poll(true);
-  };
-  const poll = async () => {
-    const s = await api("/mapdownload").catch(() => null), el = $("#mpk-state"); if (!s || !el) return;
-    const p = s.bytes_total ? Math.min(100, Math.round(s.bytes_done / s.bytes_total * 100)) : 0;
-    if (s.running) el.innerHTML = `<b>Downloading ${esc(s.pack_name)} (v${s.version}): ${p}%</b> · tile ${s.tiles_done}/${s.tiles_total} · ${fB(s.bytes_done)} of ${fB(s.bytes_total)}<div class="bar" style="height:14px"><i style="width:${p}%;background:var(--accent)"></i></div>`;
-    else if (s.error) el.textContent = "Download failed: " + s.error;
-    else if (s.finished) el.innerHTML = `<b style="color:#2ecc8f">✓ Downloaded ${esc(s.pack_name)} (v${s.version})</b>: ${s.tiles_total} tiles in <a href="#" class="mpk-open" title="Open folder"><code>${esc(s.dir)}</code></a><div class="bar" style="height:14px"><i style="width:100%;background:var(--green)"></i></div>`;
-    box.querySelectorAll(".mpk-dl").forEach(b => b.disabled = !!s.running);
-    box.querySelectorAll(".mpk-open").forEach(a => a.onclick = e => { e.preventDefault(); api("/mapdownload/open", { method: "POST" }).catch(() => {}); });
-    if (s.running) setTimeout(poll, 500);
-  };
-  draw();
+    const byVer = {};
+    const collect = p => { if (p.installed_version != null) { const e = byVer[p.installed_version] ??= { n: 0, date: p.installed_date }; e.n++; } p.children.forEach(collect); };
+    u.packs.forEach(collect);
+    const summary = Object.keys(byVer).sort((a, b) => b - a).map(v => `v${v}${byVer[v].date ? " (" + esc(byVer[v].date) + ")" : ""}: ${byVer[v].n}`).join(", ");
+    box.innerHTML = `<div class="note" style="margin-top:0">${u.installed_total} packs installed: ${summary || "none"}. Newest available: v${u.latest_version}${u.latest_date ? " (" + esc(u.latest_date) + ")" : ""}. Pick a version and press Install / Switch to write a pack to the device,     or Remove to delete it.
+         <label style="float:right"><input type="checkbox" id="mpk-all" ${all ? "checked" : ""}> show all packs</label></div>
+             <div id="mpk-job" class="note"></div>
+             <div class="scroll" style="max-height:420px"><table><tr><th>Pack</th><th class="num">Version</th><th class="num">Map date</th><th class="num">Tiles</th><th class="num">Size</th><th></th></tr>${u.packs.map(p => node(p, 0)).join("")}</table></div>`;
+           $("#mpk-all").onchange = e => { all = e.target.checked; draw(); };
+           const ver = id => box.querySelector(`.mpk-ver[data-id="${id}"]`).value;
+           box.querySelectorAll(".mpk-inst").forEach(b => b.onclick = () => start(b.dataset.id, b.dataset.name, ver(b.dataset.id), b.dataset.cur));
+           box.querySelectorAll(".mpk-rm").forEach(b => b.onclick = () => start(b.dataset.id, b.dataset.name, "remove", ""));
+           const sync = sel => {
+             const b = box.querySelector(`.mpk-inst[data-id="${sel.dataset.id}"]`);
+             if (b && b.dataset.cur) b.disabled = sel.value === b.dataset.cur;
+           };
+           box.querySelectorAll(".mpk-ver").forEach(s => { sync(s); s.onchange = () => sync(s); });
+           instState();
+     };
+     draw();
 }
 
 // ---------- views ----------
@@ -172,9 +212,16 @@ const VIEWS = {
   async maps(key, el) {
     const m = await get(key, "maps");
     el.innerHTML = `<div class="grid g4">${kpi("Tiles installed", m.tile_count, fB(m.tile_bytes))}${kpi("Regions", m.regions.length, "covered areas")}${kpi("Map versions", Object.keys(m.versions).join(", ") || "–", Object.entries(m.versions).map(([v, n]) => { const d = (m.version_dates || {})[v]; const r = d ? (fDay(d.oldest) === fDay(d.newest) ? fDay(d.oldest) : `${fDay(d.oldest)} – ${fDay(d.newest)}`) : ""; return `v${v}: ${n}${r ? " (" + r + ")" : ""}`; }).join(" · ") + (Object.keys(m.version_dates || {}).length ? "" : " · date unknown"))}</div>
-    ${m.warnings.map(w => `<div class="warn" style="margin-top:10px">⚠ ${esc(w)}</div>`).join("")}
-    <div class="grid g2" style="margin-top:14px"><div class="card" style="grid-column:1/-1"><h4>Coverage map <span style="float:right;text-transform:none">Colour by <select id="mc"><option value="size">size</option><option value="version">version</option><option value="marker">missing marker</option></select></span></h4><div id="mmap" class="map tall"></div><div class="legend" id="mleg"></div></div>
-    <div class="card" style="grid-column:1/-1"><h4>Map packs</h4><div id="mpk" class="note" style="margin-top:0">Loading pack list…</div></div></div>`;
+    ${m.warnings.map(w => `<div class="warn" style="margin-top:10px">⚠ ${esc(w)}${w.startsWith("maps/temp holds") ? ` <button class="btn" id="cleanTemp" style="margin-left:8px">Clean up</button><span id="cleanMsg" class="note"></span>` : ""}</div>`)    .join("")}
+        <div class="grid g2" style="margin-top:14px"><div class="card" style="grid-column:1/-1"><h4>Coverage map <span style="float:right;text-transform:none">Colour by <select id="mc"><option value="size">size</option><option value="version">version</option><option value="marker">missing marker</option></select></span></h4><div id="mmap" class="map tall"></div><div class="legend" id="mleg"></div></div>
+        <div class="card" style="grid-column:1/-1"><h4>Map packs</h4><div id="mpk" class="note" style="margin-top:0">Loading pack list…</div></div></div>`;
+        const ct = $("#cleanTemp");
+        if (ct) ct.onclick = async () => {
+          if (!confirm("Delete the leftover files in maps/temp on the device?\n\nThe ELEMNT re-creates a render copy when it needs one. Keep the USB cable connected.")) return;
+          ct.disabled = true; $("#cleanMsg").textContent = "Deleting…";
+          try { const r = await api(`/devices/${encodeURIComponent(key)}/maps/clean`, { method: "POST" }); $("#cleanMsg").textContent = `Deleted ${r.deleted} file(s), ${fB(r.bytes)} freed. Syncing…`; $("#syncBtn").click(); }
+          catch (e) { $("#cleanMsg").textContent = "Failed: " + e.message; ct.disabled = false; }
+        };
     mapPacks(key);
     const map = newMap($("#mmap"), { zoom: 2, center: [10, 30] }); if (!map) return;
     const sizeColor = ["step", ["get", "bytes"], "#1d4e89", 200000, "#2f9bff", 1e6, "#7c5cff", 4e6, "#e46bd6", 1.2e7, "#ff5c6c"];
