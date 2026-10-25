@@ -197,6 +197,8 @@ The bundled files (build 18001 of the firmware manifest `version.json-bolt2`; an
 
 `vtm-elemnt.xml` defines a `stylemenu` with layers per device and mode (`BOLT_2`, `BOLT_2-DARK`, `ROAM_2`, `ROAM_2-DARK`, and `-TF` variants for trails) that select categories such as `bolt2`, `bolt2-dark`, `roam2` and `trails-osm`; the rules then match OSM tags and set `fill`, `stroke` and widths per category. Wahoo Desktop does not edit or install themes yet (see [Future ideas](../README.md#future-ideas-and-extensions)). Unmodified copies of the bundled `vtm-elemnt` files from BoltApp build 18001 are kept in [`styles/18001/vtm-elemnt/`](styles/18001/vtm-elemnt/); use them as the starting point for your own `vtm-elemnt.xml`.
 
+**Community styles.** [WahooMapStyles](https://github.com/bertt/WahooMapStyles) is a collection of custom map styles for the ELEMNT, with a browsable gallery at <https://bertt.github.io/WahooMapStyles/>. Submit your custom style to the community styles there so others can use it.
+
 ### Example: thinner cycle paths (2 px to 1 px)
 
 On the BOLT2 the thick dark blue lines are `highway=cycleway` ways. In `vtm-elemnt.xml` the paved cycleway styles set the width:
