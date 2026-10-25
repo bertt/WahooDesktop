@@ -188,7 +188,17 @@ To use one (described for the BOLT2):
 2. Over USB (MTP), create the folder `maps/vtm-elemnt` on the device and copy `vtm-elemnt.xml` into it.
 3. Restart the device.
 
-On a BOLT2 (firmware 180.01) the folder `maps/vtm-elemnt` and any theme `.xml` file do not exist by default (checked over MTP: `maps/` only holds `tiles`, `routing`, `temp`, `tilepack-versions.json`, `tiles_md5` and `routing_md5`), so the theme is something you add yourself; the default theme is not stored on the visible storage.
+On a BOLT2 (firmware 180.01) the folder `maps/vtm-elemnt` and any theme `.xml` file do not exist on the visible storage by default (checked over MTP: `maps/` only holds `tiles`, `routing`, `temp`, `tilepack-versions.json`, `tiles_md5` and `routing_md5`). The default theme is bundled inside `BoltApp.apk` (the firmware manifest `version.json-bolt2` points to it; build 18001 inspected, an APK is a zip):
+
+| Path in the APK | Content |
+|---|---|
+| `assets/maps/vtm-elemnt/vtm-elemnt.xml` (~32 kB) | Default VTM theme (`rendertheme` v1, namespace `opensciencemap.org/rendertheme`) |
+| `assets/maps/vtm-elemnt/vtm-elemnt-enhanced.xml` (~31 kB) | Variant with extra area fills, e.g. golf courses and schools |
+| `assets/maps/vtm-elemnt/rendertheme.xsd` | XML schema for these themes |
+| `assets/maps/mapsforge-bolt/mapsforge-bolt.xml`, `assets/maps/mapsforge-roam/mapsforge-roam.xml` (+ `renderTheme-v4.xsd`) | Mapsforge-style themes per model |
+| `assets/vtm/*.xml` (`default`, `biker`, `mapzen`, `openmaptiles`, ...) | Generic VTM themes shipped with the VTM library |
+
+`vtm-elemnt.xml` defines a `stylemenu` with layers per device and mode (`BOLT_2`, `BOLT_2-DARK`, `ROAM_2`, `ROAM_2-DARK`, and `-TF` variants for trails) that select categories such as `bolt2`, `bolt2-dark`, `roam2` and `trails-osm`; the rules then match OSM tags and set `fill`, `stroke` and widths per category. The app contains the strings `vtm-elemnt` and `mapsforge-bolt`; that the device prefers an external `maps/vtm-elemnt/vtm-elemnt.xml` over the bundled one is taken from the wahoo-vtm-themer README and not verified here.
 
 Wahoo Desktop does not edit or install themes.
 
