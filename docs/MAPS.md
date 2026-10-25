@@ -200,7 +200,7 @@ On a BOLT2 (firmware 180.01) the folder `maps/vtm-elemnt` and any theme `.xml` f
 
 `vtm-elemnt.xml` defines a `stylemenu` with layers per device and mode (`BOLT_2`, `BOLT_2-DARK`, `ROAM_2`, `ROAM_2-DARK`, and `-TF` variants for trails) that select categories such as `bolt2`, `bolt2-dark`, `roam2` and `trails-osm`; the rules then match OSM tags and set `fill`, `stroke` and widths per category. The app contains the strings `vtm-elemnt` and `mapsforge-bolt`; that the device prefers an external `maps/vtm-elemnt/vtm-elemnt.xml` over the bundled one is taken from the wahoo-vtm-themer README and not verified here.
 
-Wahoo Desktop does not edit or install themes.
+Wahoo Desktop does not edit or install themes. Copies of the bundled files from BoltApp build 18001 are kept in [`styles/18001/`](styles/18001/) (`vtm-elemnt`, `mapsforge-bolt`, `mapsforge-roam`; extracted unmodified from `assets/maps/`).
 
 ## What Wahoo Desktop does and does not do
 
