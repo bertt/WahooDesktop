@@ -202,6 +202,24 @@ On a BOLT2 (firmware 180.01) the folder `maps/vtm-elemnt` and any theme `.xml` f
 
 Wahoo Desktop does not edit or install themes. Copies of the bundled files from BoltApp build 18001 are kept in [`styles/18001/`](styles/18001/) (`vtm-elemnt`, `mapsforge-bolt`, `mapsforge-roam`; extracted unmodified from `assets/maps/`).
 
+### Changing the cycle path lines
+
+On the BOLT2 the thick dark blue lines are `highway=cycleway` ways. In `vtm-elemnt.xml`:
+
+- The style `bolt2-cycle` (and `bolt2-cycle-dark`, `roam2-cycle`, `roam2-cycle-dark`) sets `stroke="#0000FF"` and `width="2.0"`. Make `width` smaller or change `stroke` to restyle them.
+- The block `<m cat="trails-osm" e="way" k="highway" v="cycleway" ...>` applies these styles. Removing its `<line use="...-cycle" />` lines hides the cycle paths (what the HIDDEN theme does).
+- Light blue lines (`#00AAFF`, thinner) are trails and tracks used by bikes: `bolt2-trail`, `*-raw-cycle`, `*-other-cycle`.
+- The only red in the file is `map-background="#FF0000"` (the map background, not a line).
+- That block tests `k="suface"` (typo for `surface`) for cycleways without a surface tag; left as shipped.
+
+To use a modified theme:
+
+1. Edit a copy of `styles/18001/vtm-elemnt/vtm-elemnt.xml` (keep the original) and name the result `vtm-elemnt.xml`.
+2. Over USB (MTP), create `maps/vtm-elemnt/` on the device and copy the file there.
+3. Restart the device. To undo, delete the file (or folder) and restart.
+
+That the device prefers this external file over the bundled theme comes from the wahoo-vtm-themer README and is not verified here, so test it first.
+
 ## What Wahoo Desktop does and does not do
 
 - **Does:** read `maps/` over USB (MTP); list installed tiles with their coverage, sizes, dates and versions; resolve pack ids to names; check the public CDN for newer map versions per pack (Maps tab, `wahoo_cli map-updates`) and compare a single tile (`--tile x/y`); show the pack tree with installed packs marked and download a pack's tiles to `%LOCALAPPDATA%\WahooDesktop\maps\<version>\tiles\8\<x>\<y>.map.lzma` (Maps tab, `wahoo_cli map-packs`, `wahoo_cli map-download <pack>`).
