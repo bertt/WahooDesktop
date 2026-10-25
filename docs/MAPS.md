@@ -230,6 +230,8 @@ Change both widths to `1.0`:
 
 Test with one small change first (such as the width example above).
 
+To preview a theme without the device, the [VTM library](https://github.com/mapsforge/vtm) (which defines this theme format) includes viewers/sample apps. Not tried here.
+
 ## What Wahoo Desktop does and does not do
 
 - **Does:** read `maps/` over USB (MTP); list installed tiles with their coverage, sizes, dates and versions; resolve pack ids to names; check the public CDN for newer map versions per pack (Maps tab, `wahoo_cli map-updates`) and compare a single tile (`--tile x/y`); show the pack tree with installed packs marked and download a pack's tiles to `%LOCALAPPDATA%\WahooDesktop\maps\<version>\tiles\8\<x>\<y>.map.lzma` (Maps tab, `wahoo_cli map-packs`, `wahoo_cli map-download <pack>`).
