@@ -183,7 +183,7 @@ const VIEWS = {
       ${kpi("Ascent", Math.round(stats.ascent).toLocaleString() + " m")}
       ${kpi("Alerts", al.items.length, al.items.filter(a => a.level !== "info").length + " need attention")}</div>
     <div class="grid g2" style="margin-top:14px">
-      ${card("Device", kv({ Name: info.name, Model: info.descriptor || info.model, Manufacturer: info.manufacturer, "Serial number": info.serial, "Factory id": info.factory_id, Firmware: info.firmware, Hardware: info.hardware, "First ride": fDay(info.first_activity), "Last ride": fDay(info.last_activity), "Last sync": fDate(Date.parse(info.synced_at) / 1000), Connection: dev?.online ? "Online (USB / MTP)" : "Offline – showing cached data" }))}
+      ${card("Device", kv({ Name: info.name, Model: info.descriptor || info.model, Manufacturer: info.manufacturer, "Serial number": info.serial, "Factory id": info.factory_id, Firmware: info.firmware, Hardware: info.hardware, "First ride": fDay(info.first_activity), "Last ride": fDay(info.last_activity), "Last sync": fDate(Date.parse(info.synced_at) / 1000), "Local cache": info.cache_dir, Connection: dev?.online ? "Online (USB / MTP)" : "Offline – showing cached data" }))}
       ${card("Where you ride", `<div id="ovmap" class="map"></div>`)}</div>
     <div class="grid g2" style="margin-top:14px">${card("Attention", al.items.map(alertHtml).join("") || '<div class="empty">All good ✓</div>')}${card("Distance per month", `<canvas id="ovm"></canvas>`)}</div>`;
     get(key, "firmware").then(f => {
@@ -214,7 +214,22 @@ const VIEWS = {
     el.innerHTML = `<div class="grid g4">${kpi("Tiles installed", m.tile_count, fB(m.tile_bytes))}${kpi("Regions", m.regions.length, "covered areas")}${kpi("Map versions", Object.keys(m.versions).join(", ") || "–", Object.entries(m.versions).map(([v, n]) => { const d = (m.version_dates || {})[v]; const r = d ? (fDay(d.oldest) === fDay(d.newest) ? fDay(d.oldest) : `${fDay(d.oldest)} – ${fDay(d.newest)}`) : ""; return `v${v}: ${n}${r ? " (" + r + ")" : ""}`; }).join(" · ") + (Object.keys(m.version_dates || {}).length ? "" : " · date unknown"))}</div>
     ${m.warnings.map(w => `<div class="warn" style="margin-top:10px">⚠ ${esc(w)}${w.startsWith("maps/temp holds") ? ` <button class="btn" id="cleanTemp" style="margin-left:8px">Clean up</button><span id="cleanMsg" class="note"></span>` : ""}</div>`)    .join("")}
         <div class="grid g2" style="margin-top:14px"><div class="card" style="grid-column:1/-1"><h4>Coverage map <span style="float:right;text-transform:none">Colour by <select id="mc"><option value="size">size</option><option value="version">version</option><option value="marker">missing marker</option></select></span></h4><div id="mmap" class="map tall"></div><div class="legend" id="mleg"></div></div>
+        <div class="card" style="grid-column:1/-1"><h4>Map style</h4><div id="mst"></div></div>
         <div class="card" style="grid-column:1/-1"><h4>Map packs</h4><div id="mpk" class="note" style="margin-top:0">Loading pack list…</div></div></div>`;
+    const st = m.style, online = devices.find(d => d.key === key)?.online;
+    $("#mst").innerHTML = (st.file
+      ? `<div><span class="ok">✔</span> A custom style is installed: <code>${esc(st.path)}</code> · ${fB(st.file.bytes)}${st.file.modified ? " · " + fDate(st.file.modified) : ""}${st.file.cached ? ` · <a href="#" id="stView" class="link">view</a></div><div class="note">Local copy: <a href="file:///${esc(st.local_path.replace(/\\/g, "/"))}" target="_blank"><code>${esc(st.local_path)}</code></a></div><div>` : ""}</div>`
+      : `<div>No custom style on the device${st.folder ? "" : " (the folder <code>maps/vtm-elemnt</code> does not exist yet)"}. The ELEMNT uses its built-in style.</div>`)
+      + `<div style="margin-top:10px"><label class="btn"><input id="stFile" type="file" accept=".xml" hidden>${st.file ? "Replace style…" : "Upload style…"}</label> <span id="stMsg" class="note"></span></div>
+      <div class="note">A Mapsforge/VTM render theme (<code>&lt;rendertheme&gt;</code> XML) is written to <code>${esc(st.path)}</code>${st.folder ? "" : "; the folder is created first"}. ${st.file ? "The current file is backed up locally first. " : ""}${online ? "" : '<span class="warn-text">The device must be connected and switched on.</span>'}</div>`;
+    const sv = $("#stView");
+    if (sv) sv.onclick = async e => { e.preventDefault(); const r = await fetch(`/api/devices/${encodeURIComponent(key)}/file?path=${encodeURIComponent(st.path)}`); modal(`<pre>${esc(await r.text())}</pre>`); };
+    $("#stFile").onchange = async e => {
+      const f = e.target.files[0]; if (!f) return;
+      $("#stMsg").textContent = "Uploading…";
+      try { const r = await api(`/devices/${encodeURIComponent(key)}/maps/style`, { method: "POST", body: await f.arrayBuffer() }); $("#stMsg").textContent = "Uploaded" + (r.backup ? "; previous style backed up to " + r.backup : "") + ". Restart the ELEMNT to use it."; for (const k in cache) delete cache[k]; await loadDevices(); }
+      catch (err) { let msg = err.message; try { msg = JSON.parse(msg).error; } catch { } $("#stMsg").textContent = "Failed: " + msg; }
+    };
         const ct = $("#cleanTemp");
         if (ct) ct.onclick = async () => {
           if (!confirm("Delete the leftover files in maps/temp on the device?\n\nThe ELEMNT re-creates a render copy when it needs one. Keep the USB cable connected.")) return;

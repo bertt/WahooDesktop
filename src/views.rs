@@ -88,6 +88,7 @@ pub fn info(d: &DeviceData) -> Value {
         "factory_extra": sys.get(1),
         "pending_update": m.entries.iter().find(|e| !e.dir && e.path.starts_with("system_update_elemnt/")).map(|e| json!({"file": e.path, "bytes": e.size})),
         "synced_at": m.synced_at,
+        "cache_dir": d.dir.display().to_string(),
         "activities": d.summaries.len(),
         "first_activity": d.summaries.first().map(|s| s.start),
         "last_activity": last.map(|s| s.start),
@@ -163,6 +164,9 @@ pub fn storage(d: &DeviceData) -> Value {
         "note": "Routing graphs are not enumerated (≈50k small files), so they appear as unaccounted space together with system data.",
     })
 }
+
+/// Custom map style (Mapsforge/VTM render theme) the ELEMNT loads when present.
+pub const STYLE_PATH: &str = "maps/vtm-elemnt/vtm-elemnt.xml";
 
 pub fn maps(d: &DeviceData) -> Value {
     let mut tiles = Vec::new();
@@ -267,6 +271,12 @@ pub fn maps(d: &DeviceData) -> Value {
         "temp_bytes": temp_bytes,
         "tilepacks": d.tilepacks,
         "other_files": other,
+        "style": {
+            "path": STYLE_PATH,
+            "file": d.manifest.entries.iter().find(|e| !e.dir && e.path == STYLE_PATH).map(|e| json!({"bytes": e.size, "modified": e.modified, "cached": d.dir.join("files").join(STYLE_PATH).exists()})),
+            "local_path": d.dir.join("files").join(STYLE_PATH).display().to_string(),
+            "folder": d.manifest.entries.iter().any(|e| e.dir && e.path == "maps/vtm-elemnt"),
+        },
         "pax_headers": {"files": pax.0, "bytes": pax.1},
         "warnings": warnings,
         "can_download": true,

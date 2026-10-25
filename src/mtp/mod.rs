@@ -164,6 +164,11 @@ pub fn make_dir(id: &str, path: &str) -> Result<(), String> {
     backend::make_dir(id, path).map_err(|e| e.to_string())
 }
 
+/// Writes a file in one device session, creating missing folders and replacing an existing file.
+pub fn put_file(id: &str, path: &str, data: &[u8]) -> Result<(), String> {
+    backend::put_file(id, path, data).map_err(|e| e.to_string())
+}
+
 pub fn sanitize(s: &str) -> String {
     s.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect()
 }

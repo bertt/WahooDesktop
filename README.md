@@ -101,6 +101,7 @@ See [Build and run](#build-and-run).
 - Battery history, drain and estimated runtime
 - Storage breakdown by folder
 - Maps: installed tiles on a map (colour by size/version/marker), versions, leftover temp files, warnings
+- Map style: the Maps tab shows whether a custom style `maps/vtm-elemnt/vtm-elemnt.xml` is on the device (cached by `sync`, with a view link) and has an upload button that creates the folder when missing; an existing style is backed up to `%LOCALAPPDATA%\WahooDesktop\maps\backup` first
 - Routing: own tab (and `wahoo_cli routing`) with the Valhalla graph tiles: count per level and a coverage map built from `maps/routing_md5` (cached by `sync`, so run a sync once after updating), the service config and the routing size of installed packs (see [docs/ROUTING.md](docs/ROUTING.md))
 - Sensors (from FIT files), saved routes (click to view on a map; drag and drop a .gpx/.fit to add one to the device), planned workouts, derived alerts
 - History: sortable/filterable activity list; details with map, charts, laps, events and raw FIT message debug

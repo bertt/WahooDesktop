@@ -177,6 +177,57 @@ impl App {
         Ok((name, info))
     }
 
+    /// Writes `maps/vtm-elemnt/vtm-elemnt.xml` on the Wahoo (creating the folder when missing) and re-syncs.
+    /// An existing style is backed up locally first. Returns the backup path, if any.
+    pub fn upload_style(self: &Arc<Self>, device_key: Option<&str>, data: &[u8]) -> Result<Option<String>, String> {
+        let text = std::str::from_utf8(data).map_err(|_| "The style must be a UTF-8 XML file".to_string())?;
+        if data.len() > 5_000_000 || !text.trim_start().starts_with('<') || !text.contains("<rendertheme") {
+            return Err("Not a valid map style: expected an XML file with a <rendertheme> root element".into());
+        }
+        if crate::packinstall::busy() || self.sync.lock().unwrap().running {
+            return Err("A sync or map install is running; try again when it has finished".into());
+        }
+        let det = mtp::detect();
+        let dev = det
+            .mtp_devices
+            .iter()
+            .find(|m| device_key.is_none_or(|k| mtp::sanitize(&m.name) == k))
+            .ok_or_else(|| "Device is not connected. Connect it over USB and make sure it is switched on.".to_string())?;
+        let path = crate::views::STYLE_PATH;
+        let key = device_key.map(str::to_string).unwrap_or_else(|| mtp::sanitize(&dev.name));
+        let cached = self.devices.read().unwrap().get(&key).cloned().ok_or("Device has not been synced yet")?;
+        let local = cached.dir.join("files").join(path);
+        let mut backup = None;
+        if let Ok(old) = std::fs::read(&local) {
+            let dir = crate::mapupdates::download_dir().join("backup");
+            std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create the backup folder: {e}"))?;
+            let b = dir.join(format!("vtm-elemnt.{}.xml", chrono::Local::now().format("%Y%m%d-%H%M%S")));
+            std::fs::write(&b, old).map_err(|e| format!("cannot write the backup: {e}"))?;
+            backup = Some(b.display().to_string());
+        }
+        mtp::put_file(&dev.id, path, data)?;
+
+        // Mirror into the local cache and manifest so no full sync is needed.
+        if let Some(p) = local.parent() {
+            let _ = std::fs::create_dir_all(p);
+        }
+        if std::fs::write(&local, data).is_ok() {
+            let mut m = cached.manifest.clone();
+            let now = Some(chrono::Utc::now().timestamp());
+            m.entries.retain(|e| e.path != path);
+            if !m.entries.iter().any(|e| e.dir && e.path == "maps/vtm-elemnt") {
+                m.entries.push(mtp::Entry { path: "maps/vtm-elemnt".into(), size: 0, dir: true, modified: now });
+            }
+            m.entries.push(mtp::Entry { path: path.into(), size: data.len() as u64, dir: false, modified: now });
+            if std::fs::write(cached.dir.join("manifest.json"), serde_json::to_vec(&m).unwrap_or_default()).is_ok() {
+                if let Some(nd) = load_device(&cached.dir) {
+                    self.devices.write().unwrap().insert(key, Arc::new(nd));
+                }
+            }
+        }
+        Ok(backup)
+    }
+
     pub fn log(&self, phase: &str, line: impl Into<String>) {
         let mut s = self.sync.lock().unwrap();
         s.phase = phase.into();

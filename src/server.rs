@@ -37,6 +37,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/api/devices/{key}/mappacks/{id}/plan", get(pack_plan))
         .route("/api/devices/{key}/mappacks/{id}/install", post(pack_install))
         .route("/api/devices/{key}/maps/clean", post(clean_maps))
+        .route("/api/devices/{key}/maps/style", post(upload_style).layer(axum::extract::DefaultBodyLimit::max(8 * 1024 * 1024)))
         .route("/api/mapinstall", get(|| async { Json(crate::packinstall::state()) }))
         .route("/api/mapinstall/cancel", post(|| async { crate::packinstall::cancel(); Json(json!({"cancelling": true})) }))
         .route("/api/mapdownload", get(|| async { Json(crate::mapupdates::download_state()) }))
@@ -74,6 +75,15 @@ async fn upload_route(State(app): St, Path(key): Path<String>, Query(q): Query<H
         .unwrap()
         .map_err(|e| fail(StatusCode::BAD_GATEWAY, e))?;
     Ok(Json(json!({"file": name, "converted": info})))
+}
+
+async fn upload_style(State(app): St, Path(key): Path<String>, body: axum::body::Bytes) -> ApiResult {
+    let a = app.clone();
+    let backup = tokio::task::spawn_blocking(move || a.upload_style(Some(&key), &body))
+        .await
+        .unwrap()
+        .map_err(|e| fail(StatusCode::BAD_GATEWAY, e))?;
+    Ok(Json(json!({"uploaded": true, "backup": backup})))
 }
 
 /// Starts downloading the tiles of one map pack to the local maps folder (not to the device).

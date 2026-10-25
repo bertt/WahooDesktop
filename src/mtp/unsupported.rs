@@ -32,6 +32,10 @@ pub fn make_dir(_pnp_id: &str, _path: &str) -> Result<(), String> {
     Err(MSG.into())
 }
 
+pub fn put_file(_pnp_id: &str, _path: &str, _data: &[u8]) -> Result<(), String> {
+    Err(MSG.into())
+}
+
 pub fn sync(_cache: &Path, _pnp_id: &str, _friendly: &str) -> Result<(Manifest, PathBuf), String> {
     Err(MSG.into())
 }

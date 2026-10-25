@@ -346,6 +346,24 @@ pub fn make_dir(pnp_id: &str, path: &str) -> Result<()> {
     Ok(())
 }
 
+/// Writes `data` to `path` in one session: creates missing folders and replaces an existing file.
+pub fn put_file(pnp_id: &str, path: &str, data: &[u8]) -> Result<()> {
+    let _g = ComGuard::new();
+    let s = Session::open_with(pnp_id, 0xC000_0000)?;
+    let (dir, name) = path.rsplit_once('/').ok_or_else(|| Error::from_hresult(windows::core::HRESULT(-2147024809)))?;
+    let mut cur = s.children("DEVICE").into_iter().next().ok_or_else(|| Error::from_hresult(windows::core::HRESULT(-2147024894)))?;
+    for part in dir.split('/').filter(|p| !p.is_empty()) {
+        cur = match s.child_names(&cur).into_iter().find(|(_, n)| n.eq_ignore_ascii_case(part)) {
+            Some((id, _)) => id,
+            None => s.create_folder(&cur, part)?,
+        };
+    }
+    if let Some((old, _)) = s.child_names(&cur).into_iter().find(|(_, n)| n.eq_ignore_ascii_case(name)) {
+        s.delete_object(&old)?;
+    }
+    s.create_object(&cur, name, data)
+}
+
 /// Creates a new file at `path`; the parent folder must exist and the file must not.
 pub fn write_new(pnp_id: &str, path: &str, data: &[u8]) -> Result<()> {
     let _g = ComGuard::new();
@@ -427,6 +445,7 @@ pub fn sync(cache: &Path, pnp_id: &str, friendly: &str) -> Result<(Manifest, Pat
                 || e.path == "maps/tilepack-versions.json"
                 || e.path == "maps/routing/routing-config.json"
                 || e.path == "maps/routing_md5"
+                || e.path == "maps/vtm-elemnt/vtm-elemnt.xml"
                 || e.path.starts_with("maps/temp/")
                 || (e.path.starts_with("logs/") && e.size < 2_000_000))
     };
