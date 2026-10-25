@@ -9,6 +9,7 @@ What is known about how an ELEMNT stores and receives maps. Most of this is reve
 - [Tiles and versions](#tiles-and-versions)
 - [Where Wahoo downloads maps from](#where-wahoo-downloads-maps-from) (CDN layout, map versions, update check, GeoJSON of all tiles)
 - [Building your own maps (community approach)](#building-your-own-maps-community-approach)
+- [Map styling](#map-styling)
 - [What Wahoo Desktop does and does not do](#what-wahoo-desktop-does-and-does-not-do)
 - [Sources](#sources)
 
@@ -177,6 +178,18 @@ Notes from that work:
 - The result is fresh OpenStreetMap data instead of the 2019 packs.
 - Always keep a backup of the original tile.
 
+## Map styling
+
+The look of the map (colours, line widths, which features are shown) is controlled by a VTM render theme, not by the tiles. [wahoo-vtm-themer](https://github.com/BadmanBarista/wahoo-vtm-themer) is a community project that regenerates modified versions of Wahoo's default VTM theme (it checks for Wahoo updates weekly and patches the theme with `sed`). It offers two variants: HIDDEN (hides the blue cycle paths) and THIN (makes them very thin).
+
+To use one (described for the BOLT2):
+
+1. Download the XML theme from the [latest release](https://github.com/BadmanBarista/wahoo-vtm-themer/releases/latest) and rename it to `vtm-elemnt.xml`.
+2. Over USB (MTP), create the folder `maps/vtm-elemnt` on the device and copy `vtm-elemnt.xml` into it.
+3. Restart the device.
+
+Wahoo Desktop does not edit or install themes.
+
 ## What Wahoo Desktop does and does not do
 
 - **Does:** read `maps/` over USB (MTP); list installed tiles with their coverage, sizes, dates and versions; resolve pack ids to names; check the public CDN for newer map versions per pack (Maps tab, `wahoo_cli map-updates`) and compare a single tile (`--tile x/y`); show the pack tree with installed packs marked and download a pack's tiles to `%LOCALAPPDATA%\WahooDesktop\maps\<version>\tiles\8\<x>\<y>.map.lzma` (Maps tab, `wahoo_cli map-packs`, `wahoo_cli map-download <pack>`).
@@ -189,4 +202,5 @@ Notes from that work:
 - Sommet, `tools/wahoo_maps.py`: <https://github.com/skinnie/sommet/blob/main/tools/wahoo_maps.py>
 - wahooMapsCreator: <https://github.com/treee111/wahooMapsCreator>
 - Mapsforge binary map format: <https://github.com/mapsforge/mapsforge/blob/master/docs/Specification-Binary-Map-File.md>
+- wahoo-vtm-themer (map styling): <https://github.com/BadmanBarista/wahoo-vtm-themer>
 - Own inspection of a BOLT2 (firmware 180.01) and the staged BoltApp APK, plus `curl` checks of the CDN.
