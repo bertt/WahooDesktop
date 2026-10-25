@@ -180,45 +180,55 @@ Notes from that work:
 
 ## Map styling
 
-The look of the map (colours, line widths, which features are shown) is controlled by a VTM render theme, not by the tiles. [wahoo-vtm-themer](https://github.com/BadmanBarista/wahoo-vtm-themer) is a community project that regenerates modified versions of Wahoo's default VTM theme (it checks for Wahoo updates weekly and patches the theme with `sed`). It offers two variants: HIDDEN (hides the blue cycle paths) and THIN (makes them very thin).
+The look of the map (colours, line widths, which features are shown) is controlled by a VTM render theme, not by the tiles.
 
-To use one (described for the BOLT2):
+**Default style = firmware.** The default theme is bundled inside the firmware (`BoltApp.apk`) and is not visible on the device storage. On a BOLT2 (firmware 180.01) the folder `maps/vtm-elemnt` does not exist by default (checked over MTP: `maps/` only holds `tiles`, `routing`, `temp`, `tilepack-versions.json`, `tiles_md5` and `routing_md5`).
 
-1. Download the XML theme from the [latest release](https://github.com/BadmanBarista/wahoo-vtm-themer/releases/latest) and rename it to `vtm-elemnt.xml`.
-2. Over USB (MTP), create the folder `maps/vtm-elemnt` on the device and copy `vtm-elemnt.xml` into it.
-3. Restart the device.
+**Override = put a file on the device.** A file `maps/vtm-elemnt/vtm-elemnt.xml` overrides the bundled style. Without that file the firmware default is used, so deleting the file restores the default. This override behaviour comes from the community project [wahoo-vtm-themer](https://github.com/BadmanBarista/wahoo-vtm-themer) (it publishes a HIDDEN and a THIN variant that hide or thin out the blue cycle paths) and has not been verified with Wahoo Desktop itself.
 
-On a BOLT2 (firmware 180.01) the folder `maps/vtm-elemnt` and any theme `.xml` file do not exist on the visible storage by default (checked over MTP: `maps/` only holds `tiles`, `routing`, `temp`, `tilepack-versions.json`, `tiles_md5` and `routing_md5`). The default theme is bundled inside `BoltApp.apk` (the firmware manifest `version.json-bolt2` points to it; build 18001 inspected, an APK is a zip):
+The bundled files (build 18001 of the firmware manifest `version.json-bolt2`; an APK is a zip):
 
 | Path in the APK | Content |
 |---|---|
 | `assets/maps/vtm-elemnt/vtm-elemnt.xml` (~32 kB) | Default VTM theme (`rendertheme` v1, namespace `opensciencemap.org/rendertheme`) |
 | `assets/maps/vtm-elemnt/vtm-elemnt-enhanced.xml` (~31 kB) | Variant with extra area fills, e.g. golf courses and schools |
 | `assets/maps/vtm-elemnt/rendertheme.xsd` | XML schema for these themes |
-| `assets/maps/mapsforge-bolt/mapsforge-bolt.xml`, `assets/maps/mapsforge-roam/mapsforge-roam.xml` (+ `renderTheme-v4.xsd`) | Mapsforge-style themes per model |
 | `assets/vtm/*.xml` (`default`, `biker`, `mapzen`, `openmaptiles`, ...) | Generic VTM themes shipped with the VTM library |
 
-`vtm-elemnt.xml` defines a `stylemenu` with layers per device and mode (`BOLT_2`, `BOLT_2-DARK`, `ROAM_2`, `ROAM_2-DARK`, and `-TF` variants for trails) that select categories such as `bolt2`, `bolt2-dark`, `roam2` and `trails-osm`; the rules then match OSM tags and set `fill`, `stroke` and widths per category. The app contains the strings `vtm-elemnt` and `mapsforge-bolt`; that the device prefers an external `maps/vtm-elemnt/vtm-elemnt.xml` over the bundled one is taken from the wahoo-vtm-themer README and not verified here.
+`vtm-elemnt.xml` defines a `stylemenu` with layers per device and mode (`BOLT_2`, `BOLT_2-DARK`, `ROAM_2`, `ROAM_2-DARK`, and `-TF` variants for trails) that select categories such as `bolt2`, `bolt2-dark`, `roam2` and `trails-osm`; the rules then match OSM tags and set `fill`, `stroke` and widths per category. Wahoo Desktop does not edit or install themes yet (see [Future ideas](../README.md#future-ideas-and-extensions)). Unmodified copies of the bundled `vtm-elemnt` files from BoltApp build 18001 are kept in [`styles/18001/vtm-elemnt/`](styles/18001/vtm-elemnt/); use them as the starting point for your own `vtm-elemnt.xml`.
 
-Wahoo Desktop does not edit or install themes. Copies of the bundled files from BoltApp build 18001 are kept in [`styles/18001/`](styles/18001/) (`vtm-elemnt`, `mapsforge-bolt`, `mapsforge-roam`; extracted unmodified from `assets/maps/`).
+### Example: thinner cycle paths (2 px to 1 px)
 
-### Changing the cycle path lines
+On the BOLT2 the thick dark blue lines are `highway=cycleway` ways. In `vtm-elemnt.xml` the paved cycleway styles set the width:
 
-On the BOLT2 the thick dark blue lines are `highway=cycleway` ways. In `vtm-elemnt.xml`:
+```xml
+<!-- Paved Cycleways-->
+<style-line id="bolt2-cycle" cat="bolt2" stroke="#0000FF" width="2.0"/>
+<style-line id="bolt2-cycle-dark" cat="bolt2-dark" stroke="#0000FF" width="2.0"/>
+```
 
-- The style `bolt2-cycle` (and `bolt2-cycle-dark`, `roam2-cycle`, `roam2-cycle-dark`) sets `stroke="#0000FF"` and `width="2.0"`. Make `width` smaller or change `stroke` to restyle them.
+Change both widths to `1.0`:
+
+```xml
+<style-line id="bolt2-cycle" cat="bolt2" stroke="#0000FF" width="1.0"/>
+<style-line id="bolt2-cycle-dark" cat="bolt2-dark" stroke="#0000FF" width="1.0"/>
+```
+
+`roam2-cycle` and `roam2-cycle-dark` inherit via `use="bolt2-cycle"` and `use="bolt2-cycle-dark"`, so they follow automatically. Other things you can change in the same file:
+
+- Change `stroke` in the same styles to recolour the cycle paths.
 - The block `<m cat="trails-osm" e="way" k="highway" v="cycleway" ...>` applies these styles. Removing its `<line use="...-cycle" />` lines hides the cycle paths (what the HIDDEN theme does).
 - Light blue lines (`#00AAFF`, thinner) are trails and tracks used by bikes: `bolt2-trail`, `*-raw-cycle`, `*-other-cycle`.
 - The only red in the file is `map-background="#FF0000"` (the map background, not a line).
 - That block tests `k="suface"` (typo for `surface`) for cycleways without a surface tag; left as shipped.
 
-To use a modified theme:
+### Installing a modified style
 
 1. Edit a copy of `styles/18001/vtm-elemnt/vtm-elemnt.xml` (keep the original) and name the result `vtm-elemnt.xml`.
 2. Over USB (MTP), create `maps/vtm-elemnt/` on the device and copy the file there.
 3. Restart the device. To undo, delete the file (or folder) and restart.
 
-That the device prefers this external file over the bundled theme comes from the wahoo-vtm-themer README and is not verified here, so test it first.
+Test with one small change first (such as the width example above).
 
 ## What Wahoo Desktop does and does not do
 
