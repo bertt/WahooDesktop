@@ -188,6 +188,8 @@ To use one (described for the BOLT2):
 2. Over USB (MTP), create the folder `maps/vtm-elemnt` on the device and copy `vtm-elemnt.xml` into it.
 3. Restart the device.
 
+On a BOLT2 (firmware 180.01) the folder `maps/vtm-elemnt` and any theme `.xml` file do not exist by default (checked over MTP: `maps/` only holds `tiles`, `routing`, `temp`, `tilepack-versions.json`, `tiles_md5` and `routing_md5`), so the theme is something you add yourself; the default theme is not stored on the visible storage.
+
 Wahoo Desktop does not edit or install themes.
 
 ## What Wahoo Desktop does and does not do
